@@ -10,10 +10,10 @@ The previous Phase 3 history remains unchanged and is classified
 `REJECTED_AS_IMU_POSE_CORE` / `STAGE_INCOMPLETE_CORE_ESTIMATOR_NOT_IMPLEMENTED`.
 Phase 4 was not started.
 
-Implementation commit: `d238d925a049c68cbce7ff745a8db6645be6a12d`.
+Implementation commit: `4f35bbfce16b6efd6ec5fc793d13ee85d17423a5`.
 The exact detached-SHA qualification artifact is
-`PHASE3R_QUALIFICATION_RAW.json`, SHA-256
-`a107039a36efaba4b2d320ad4ec96ec99728cccbb87970addb8fd9fb29c0be2d`.
+`PHASE3R_QUALIFICATION_DETACHED_4f35bbfce.json`, SHA-256
+`6edd49ab1a213e127f23cdbf6ed90bf4b4ac11bfa8f5d110c3fa9a26fa2f6567`.
 
 ## Executed estimator and open-source paths
 
@@ -34,24 +34,26 @@ coupled 30-dimensional SO(3) normal system. It applies
 from H9, and the mapping is immutable. Gravity tests cover ±5°, ±45°, random
 tilt, +Y installation, permutations, antipodes and sign mutation. Rest updates
 are limited to the formal still intervals; preparation/recovery cannot update
-bias. The full solver uses confidence-scaled robust anatomical priors and an
-objective-decreasing line search.
+bias. The full solver uses confidence-scaled robust anatomical priors, an
+explicit 27-dimensional joint-compliance state with covariance, and an
+objective-decreasing line search. Functional-source actions exclude their own
+qmt-derived joint prior from Production and initialize from B0.
 
 ## Synthetic qualification
 
 | Result | Measured | Gate |
 |---|---:|---:|
-| Noiseless gauge-aligned orientation max | `6.83e-10°` | `≤0.1°` |
-| Noisy relative-joint P95 | `1.729°` | `≤5°` |
+| Noiseless gauge-aligned orientation max | `6.53e-10°` | `≤0.1°` |
+| Noisy relative-joint P95 | `1.733°` | `≤5°` |
 | Static tilt RMS | `0.920°` | `≤2°` |
-| Fixed-bone variation | `2.22e-16` | `≤1e-9` |
+| Fixed-bone variation | `3.33e-16` | `≤1e-9` |
 | Gyro-bias error median / P95 | `4.25e-4 / 6.24e-4 rad/s` | finite pre-freeze range |
-| MC coverage, 10 independent trials | `0.9379 ± 0.0278 SE` | `0.85–0.99` |
+| MC coverage, 10 independent trials | `0.9894 ± 0.00535 SE` | `0.85–0.99` |
 
 All nine required ablations changed the final pose. Data-only SVD was
 `rank 29 / nullity 1` at every frozen tolerance from `1e-4` through `1e-8`,
-with nonzero condition number `33.0053`; the weak-prior-inclusive matrix was
-`rank 30 / nullity 0`, condition number `2066.88`. The remaining null direction
+with nonzero condition number `32.9353`; the weak-prior-inclusive matrix was
+`rank 30 / nullity 0`, condition number `2059.67`. The remaining null direction
 is the declared global-yaw gauge, not a whole-body invalidation.
 
 ## Real replay
@@ -65,17 +67,23 @@ variation was `3.89e-16`; the worst Production/B0 aligned 50 Hz step ratio was
 `1.405`. Initial/final formal-still Production excursions were `3.69°/4.97°`,
 versus B0 `9.31°/9.24°`.
 
-Expected production responses were present: T-pose arms `89.3°/94.8°`, pelvis
-circle pelvis/torso `96.1°/59.2°`, left/right shoulder `113.0°/124.0°`,
-left/right elbow forearms `146.1°/168.8°`, left/right hip thighs
-`98.9°/104.2°`, left/right seated-knee shanks `113.7°/111.8°`, left/right
-heel-raise shanks `15.0°/10.4°`, trunk flexion/rotation `37.2°/77.7°`, squat
-thighs `103.7°/96.3°`, and left/right heel-to-butt shanks `129.0°/117.9°`.
+Each action stores complete VQF quaternion/bias/bias-uncertainty/rest state
+with sample-UID lineage, complete B0/B1/P segment and joint trajectories and
+uncertainty, and an explicit baseline manifest. The maximum algorithmic
+measurement-age P95 was `4.0 ms`; compute runtime is reported separately and
+is not claimed as sensor-to-host latency.
+
+Expected production responses were present: T-pose arms `89.2°/95.6°`, pelvis
+circle pelvis/torso `95.4°/65.1°`, left/right shoulder `113.6°/129.7°`,
+left/right elbow forearms `147.2°/169.0°`, left/right hip thighs
+`97.8°/103.1°`, left/right seated-knee shanks `113.8°/112.1°`, left/right
+heel-raise shanks `15.9°/9.2°`, trunk flexion/rotation `37.4°/76.2°`, squat
+thighs `103.9°/96.6°`, and left/right heel-to-butt shanks `133.0°/118.6°`.
 Supporting motion by other segments is retained and not treated as operator
 error.
 
 H00 walk, H01 boxing and H02 golf produced 100% engineering availability and
-B1-to-production median differences of `22.89°`, `20.93°`, and `6.97°`.
+B1-to-production median differences of `24.85°`, `21.78°`, and `8.15°`.
 They support stress diagnostics and visualization only, not held-out accuracy.
 
 ## Scope and remaining limits

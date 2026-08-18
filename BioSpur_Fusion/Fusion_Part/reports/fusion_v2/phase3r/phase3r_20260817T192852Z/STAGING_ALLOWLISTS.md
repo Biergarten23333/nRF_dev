@@ -7,6 +7,11 @@ test/support files and four Phase3-R tools. The staged audit reported 2,786
 insertions. No glob, `git add .`, `git add -A`, raw, trajectory, GIF, dependency
 checkout or cache was staged.
 
+Forward-only strict-gap repair implementation commit
+`4f35bbfce16b6efd6ec5fc793d13ee85d17423a5` used the literal allowlist at
+`config/fusion_v2/phase3r/STAGING_ALLOWLIST_REPAIR_IMPLEMENTATION.txt`. Its
+detached exact-SHA run passed 44 Phase3-R tests and the complete qualification.
+
 The attestation commit allowlist is exactly the files in this report directory:
 
 ```text
@@ -20,3 +25,6 @@ REPRESENTATIVE_B0_B1_P.png
 STAGING_ALLOWLISTS.md
 TEST_RESULTS.json
 ```
+
+The final forward-only repair attestation uses exactly the literal paths in
+`STAGING_ALLOWLIST_REPAIR_ATTESTATION.txt` in this directory.

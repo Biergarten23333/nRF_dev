@@ -8,9 +8,10 @@ angles or external accuracy. Global yaw remains a declared gauge. Phase 4 was
 not started.
 
 The external evidence root contains 22 machine-readable production trajectories,
-22 B0/B1/P NPZ bundles, 17 required triptych GIFs, the real calibration/qmt
-record, master summary, data-access ledger/summary, evidence manifest and raw
-qualification JSON. The committed representative PNG samples T-pose, left hip,
+22 complete B0/B1/P NPZ bundles, 22 full VQF state and exact-lineage bundles,
+17 required triptych GIFs, the real calibration/qmt record, master summary,
+data-access ledger/summary, evidence manifest and raw qualification JSON. The
+committed representative PNG samples T-pose, left hip,
 squat, walk, boxing and golf; it is illustrative, not truth.
 
 Before any accuracy/generalization claim, collect a new independent evaluation
