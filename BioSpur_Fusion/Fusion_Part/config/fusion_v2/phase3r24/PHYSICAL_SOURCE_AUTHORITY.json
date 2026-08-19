@@ -1,0 +1,118 @@
+{
+  "schema": "biospur-phase3r24-physical-source-authority-v1",
+  "classification_taxonomy": [
+    "SESSION_RECORDED_DIRECTED_METROLOGY",
+    "SESSION_RECORDED_APPROXIMATE_DONNING",
+    "GENERAL_HARDWARE_GEOMETRY_ONLY",
+    "PROTOCOL_SEMANTIC",
+    "IMU_DERIVED_CONDITIONAL",
+    "ASSUMPTION_ONLY"
+  ],
+  "pelvis_hardware_id": "BSFC2CC",
+  "pelvis_layout_class": "C2CC_DISTINCT_FROM_H9",
+  "official_general_sources": [
+    {
+      "url": "https://wit-motion.com/index.php/Module/37.html",
+      "retrieved_bytes_sha256": "df2afa208990a1db3237c2e7332b5ef030c37bb10a84127961cc887e0f9d5925",
+      "claim": "official WT61P product page: six-axis accelerometer/gyroscope and up-to-200-Hz product family",
+      "scope": "GENERAL_HARDWARE_GEOMETRY_ONLY",
+      "does_not_prove": "fitted C2CC revision, module-to-PCB transform, enclosure transform, or session donning"
+    },
+    {
+      "url": "https://github.com/WITMOTION/WitStandardProtocol_JY901/blob/e8f4e3afc02263e2ef15052dc758f45efaebe12f/STM32F1/STM32Core_SDK_Normal/Source/wit_c_sdk/REG.h",
+      "upstream_commit": "e8f4e3afc02263e2ef15052dc758f45efaebe12f",
+      "blob_bytes_sha256": "9b1c061ccf0bfb43afee87e73c82ab13b67519cd14a09aad8d9cb2601bd370fe",
+      "claim": "official protocol definitions AX/AY/AZ=0x34/0x35/0x36 and GX/GY/GZ=0x37/0x38/0x39",
+      "scope": "GENERAL_HARDWARE_GEOMETRY_ONLY",
+      "does_not_prove": "physical package axes as assembled on the fitted C2CC PCB"
+    }
+  ],
+  "required_links": [
+    {
+      "id": "P_protocol_to_S_pelvis_at_t_ref",
+      "from": "S_pelvis(t_ref)",
+      "to": "P_protocol",
+      "source_bound": false,
+      "directed_sign_bound": false,
+      "geometry": "VERTICAL_OR_POSITION_ONLY",
+      "status": "NOT_PROVEN",
+      "reason": "subject facing is approximate and world definition is PENDING_MARK_AND_RECORD; pelvis reference posture/tolerance was not surveyed"
+    },
+    {
+      "id": "S_pelvis_to_actual_donning",
+      "from": "D",
+      "to": "S_pelvis(t_ref)",
+      "source_bound": true,
+      "directed_sign_bound": false,
+      "geometry": "VERTICAL_OR_POSITION_ONLY",
+      "status": "POSITION_ONLY",
+      "reason": "waist-belt center/body-front is a placement statement; pcb face and directed edge were NOT_MEASURED"
+    },
+    {
+      "id": "donning_to_enclosure",
+      "from": "E",
+      "to": "D",
+      "source_bound": false,
+      "directed_sign_bound": false,
+      "geometry": "UNKNOWN",
+      "status": "NOT_PROVEN",
+      "reason": "session photographs were declined and no keyed directed enclosure marker is recorded"
+    },
+    {
+      "id": "enclosure_to_pcb",
+      "from": "B",
+      "to": "E",
+      "source_bound": false,
+      "directed_sign_bound": false,
+      "geometry": "UNKNOWN",
+      "revision_conflict": true,
+      "status": "REVISION_UNBOUND",
+      "reason": "no tracked C2CC assembly drawing/CAD or revision-bound transform was found"
+    },
+    {
+      "id": "pcb_to_JY61P_package",
+      "from": "M",
+      "to": "B",
+      "source_bound": false,
+      "directed_sign_bound": false,
+      "geometry": "UNKNOWN",
+      "revision_conflict": true,
+      "status": "REVISION_UNBOUND",
+      "reason": "no tracked C2CC layout/assembly file binds the fitted module orientation"
+    },
+    {
+      "id": "package_to_output_register_axes",
+      "from": "I_register",
+      "to": "M",
+      "source_bound": false,
+      "directed_sign_bound": false,
+      "geometry": "UNKNOWN",
+      "status": "NOT_PROVEN_FOR_FITTED_REVISION",
+      "reason": "official product material is general hardware evidence; local physical-board axis contract remains UNMEASURED"
+    },
+    {
+      "id": "register_axes_to_decoder_output",
+      "from": "I_decoder",
+      "to": "I_register",
+      "source_bound": true,
+      "directed_sign_bound": true,
+      "geometry": "DIRECTED_3D",
+      "status": "PROVEN_FROM_CODE",
+      "reason": "signed little-endian AX/AY/AZ/GX/GY/GZ are decoded without permutation or sign remap"
+    },
+    {
+      "id": "decoder_output_to_VQF_E_pelvis",
+      "from": "I_decoder",
+      "to": "E_pelvis",
+      "source_bound": true,
+      "directed_sign_bound": true,
+      "geometry": "ACTIVE_SO3",
+      "status": "PROVEN_FROM_CODE_AND_OFFICIAL_UPSTREAM",
+      "reason": "official VQF 2.1.2 q6D is scalar-first active R_EiI; its yaw gauge is node-local"
+    }
+  ],
+  "uncertainty_bounded": false,
+  "propagated_uncertainty_deg": null,
+  "gate_deg": 15,
+  "same_likelihood_reuse_allowed": false
+}

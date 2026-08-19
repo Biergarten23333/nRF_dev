@@ -1,0 +1,209 @@
+{
+  "classification": "CONFLICTING_OR_REVISION_UNBOUND",
+  "conclusion": "pelvis front-center is positional; H9 short-edge-down is primarily vertical and cannot be pooled into distinct C2CC",
+  "equation": "R_Pprotocol_I(t_ref)=R_Pprotocol_Spelvis(t_ref) R_Spelvis_D(t_ref) R_DE R_EB R_BM R_MI",
+  "frame_convention": "R_AB maps B-frame coordinates into A-frame coordinates",
+  "independence": "no chain conclusion consumes IMU likelihood",
+  "official_general_sources": [
+    {
+      "claim": "official WT61P product page: six-axis accelerometer/gyroscope and up-to-200-Hz product family",
+      "does_not_prove": "fitted C2CC revision, module-to-PCB transform, enclosure transform, or session donning",
+      "retrieved_bytes_sha256": "df2afa208990a1db3237c2e7332b5ef030c37bb10a84127961cc887e0f9d5925",
+      "scope": "GENERAL_HARDWARE_GEOMETRY_ONLY",
+      "url": "https://wit-motion.com/index.php/Module/37.html"
+    },
+    {
+      "blob_bytes_sha256": "9b1c061ccf0bfb43afee87e73c82ab13b67519cd14a09aad8d9cb2601bd370fe",
+      "claim": "official protocol definitions AX/AY/AZ=0x34/0x35/0x36 and GX/GY/GZ=0x37/0x38/0x39",
+      "does_not_prove": "physical package axes as assembled on the fitted C2CC PCB",
+      "scope": "GENERAL_HARDWARE_GEOMETRY_ONLY",
+      "upstream_commit": "e8f4e3afc02263e2ef15052dc758f45efaebe12f",
+      "url": "https://github.com/WITMOTION/WitStandardProtocol_JY901/blob/e8f4e3afc02263e2ef15052dc758f45efaebe12f/STM32F1/STM32Core_SDK_Normal/Source/wit_c_sdk/REG.h"
+    }
+  ],
+  "operator_prompt_binding": {
+    "classification": "OPERATOR_RECORDED_POST_CAPTURE_APPROXIMATE_DONNING_STATEMENT",
+    "sha256": "758140c81657cacac0674920c5521020e683b0459a4f0caa3f11bca75ee6a86c"
+  },
+  "repository_inventory": {
+    "complete_directed_nonvertical_chain_found": false,
+    "session_device_marked_photos_found": false,
+    "session_metadata_source": "protected-worktree read-only repo-ignored dataset",
+    "tracked_C2CC_CAD_or_assembly_transform_found": false
+  },
+  "required_links": [
+    {
+      "directed_sign_bound": false,
+      "from": "S_pelvis(t_ref)",
+      "geometry": "VERTICAL_OR_POSITION_ONLY",
+      "id": "P_protocol_to_S_pelvis_at_t_ref",
+      "reason": "subject facing is approximate and world definition is PENDING_MARK_AND_RECORD; pelvis reference posture/tolerance was not surveyed",
+      "source_bound": false,
+      "status": "NOT_PROVEN",
+      "to": "P_protocol"
+    },
+    {
+      "directed_sign_bound": false,
+      "from": "D",
+      "geometry": "VERTICAL_OR_POSITION_ONLY",
+      "id": "S_pelvis_to_actual_donning",
+      "reason": "waist-belt center/body-front is a placement statement; pcb face and directed edge were NOT_MEASURED",
+      "source_bound": true,
+      "status": "POSITION_ONLY",
+      "to": "S_pelvis(t_ref)"
+    },
+    {
+      "directed_sign_bound": false,
+      "from": "E",
+      "geometry": "UNKNOWN",
+      "id": "donning_to_enclosure",
+      "reason": "session photographs were declined and no keyed directed enclosure marker is recorded",
+      "source_bound": false,
+      "status": "NOT_PROVEN",
+      "to": "D"
+    },
+    {
+      "directed_sign_bound": false,
+      "from": "B",
+      "geometry": "UNKNOWN",
+      "id": "enclosure_to_pcb",
+      "reason": "no tracked C2CC assembly drawing/CAD or revision-bound transform was found",
+      "revision_conflict": true,
+      "source_bound": false,
+      "status": "REVISION_UNBOUND",
+      "to": "E"
+    },
+    {
+      "directed_sign_bound": false,
+      "from": "M",
+      "geometry": "UNKNOWN",
+      "id": "pcb_to_JY61P_package",
+      "reason": "no tracked C2CC layout/assembly file binds the fitted module orientation",
+      "revision_conflict": true,
+      "source_bound": false,
+      "status": "REVISION_UNBOUND",
+      "to": "B"
+    },
+    {
+      "directed_sign_bound": false,
+      "from": "I_register",
+      "geometry": "UNKNOWN",
+      "id": "package_to_output_register_axes",
+      "reason": "official product material is general hardware evidence; local physical-board axis contract remains UNMEASURED",
+      "source_bound": false,
+      "status": "NOT_PROVEN_FOR_FITTED_REVISION",
+      "to": "M"
+    },
+    {
+      "directed_sign_bound": true,
+      "from": "I_decoder",
+      "geometry": "DIRECTED_3D",
+      "id": "register_axes_to_decoder_output",
+      "reason": "signed little-endian AX/AY/AZ/GX/GY/GZ are decoded without permutation or sign remap",
+      "source_bound": true,
+      "status": "PROVEN_FROM_CODE",
+      "to": "I_register"
+    },
+    {
+      "directed_sign_bound": true,
+      "from": "I_decoder",
+      "geometry": "ACTIVE_SO3",
+      "id": "decoder_output_to_VQF_E_pelvis",
+      "reason": "official VQF 2.1.2 q6D is scalar-first active R_EiI; its yaw gauge is node-local",
+      "source_bound": true,
+      "status": "PROVEN_FROM_CODE_AND_OFFICIAL_UPSTREAM",
+      "to": "E_pelvis"
+    }
+  ],
+  "schema": "biospur-phase3r24-physical-frame-chain-audit-v1",
+  "sources": [
+    {
+      "claim": "protocol sequence and recorded direction language",
+      "classification": "PROTOCOL_SEMANTIC",
+      "exists": true,
+      "path": "/mnt/nrf_ssd/nRF_dev/BioSpur_Fusion/Fusion_Part/datasets/phase2_calibration/phase2_targeted_calibration_20260817t130918z_capture_2_with_joint_label_c8645eb2/CAPTURE_PLAN_FINAL.json",
+      "scope": "capture",
+      "sha256": "8442cd8ac9decaa41ae3f71462380c942c6fd8a652fc6756b8cd5e303dc9340b"
+    },
+    {
+      "claim": "session placement; no directed face survey",
+      "classification": "SESSION_RECORDED_APPROXIMATE_DONNING",
+      "exists": true,
+      "path": "/mnt/nrf_ssd/nRF_dev/BioSpur_Fusion/Fusion_Part/datasets/phase2_calibration/phase2_targeted_calibration_20260817t130918z_capture_2_with_joint_label_c8645eb2/identity/DONNING_MANIFEST.json",
+      "scope": "session",
+      "sha256": "fcb373281bcbc5974d1cceb5b462e19a5b87cc85dc1b3edd0acd6a41eddf7bce"
+    },
+    {
+      "claim": "photos empty: OPERATOR_DECLINED_PHOTOS",
+      "classification": "SESSION_RECORDED_APPROXIMATE_DONNING",
+      "exists": true,
+      "path": "/mnt/nrf_ssd/nRF_dev/BioSpur_Fusion/Fusion_Part/datasets/phase2_calibration/phase2_targeted_calibration_20260817t130918z_capture_2_with_joint_label_c8645eb2/identity/photos/PHOTO_MANIFEST.json",
+      "scope": "session",
+      "sha256": "89bb5e9ca94a146350862cdd4d61c02816e00e8ea9956686a537bd4f18d0deb8"
+    },
+    {
+      "claim": "revision status PENDING_INDEPENDENT_METROLOGY",
+      "classification": "GENERAL_HARDWARE_GEOMETRY_ONLY",
+      "exists": true,
+      "path": "/mnt/nrf_ssd/nRF_dev/BioSpur_Fusion/Fusion_Part/datasets/phase2_calibration/phase2_targeted_calibration_20260817t130918z_capture_2_with_joint_label_c8645eb2/device_metrology/HARDWARE_REVISION_MANIFEST.json",
+      "scope": "session",
+      "sha256": "4f9832e00f75e6f362e3ca61cdb767c9d400ce428d3c80b30b9997c5903e7325"
+    },
+    {
+      "claim": "approximate +X facing; PENDING_MARK_AND_RECORD world",
+      "classification": "SESSION_RECORDED_APPROXIMATE_DONNING",
+      "exists": true,
+      "path": "/mnt/nrf_ssd/nRF_dev/BioSpur_Fusion/Fusion_Part/datasets/phase2_calibration/phase2_targeted_calibration_20260817t130918z_capture_2_with_joint_label_c8645eb2/subject/FOOTWEAR_FLOOR_AND_FACING.json",
+      "scope": "session",
+      "sha256": "3d087c07962da326a3b702e17795132ed411d3cf4f2775ed1a386bdec8fdc453"
+    },
+    {
+      "claim": "actual action order and human-motion allowances",
+      "classification": "PROTOCOL_SEMANTIC",
+      "exists": true,
+      "path": "/mnt/nrf_ssd/nRF_dev/BioSpur_Fusion/Fusion_Part/datasets/phase2_calibration/phase2_targeted_calibration_20260817t130918z_capture_2_with_joint_label_c8645eb2/subject/ACTUAL_ACTION_EXECUTION_TABLE.md",
+      "scope": "session",
+      "sha256": "2cebc4c65e933ba63f4b6bc3c166f865a561c995e0abbc6410f03c11dd5e60ac"
+    },
+    {
+      "claim": "H9 short-edge approximately down; C2CC excluded",
+      "classification": "SESSION_RECORDED_APPROXIMATE_DONNING",
+      "exists": true,
+      "path": "/mnt/nrf_ssd/nRF_dev/BioSpur_Fusion/Fusion_Part/datasets/phase2_calibration/phase2_targeted_calibration_20260817t130918z_capture_2_with_joint_label_c8645eb2/subject/OPERATOR_MOUNTING_PRIOR_POST_SESSION.json",
+      "scope": "session",
+      "sha256": "bedc6904774f790da7142abdbce5cbc1ba083e99fab15e35f1fe46c2698002a8"
+    },
+    {
+      "claim": "decoder no-remap; physical board binding UNMEASURED",
+      "classification": "GENERAL_HARDWARE_GEOMETRY_ONLY",
+      "exists": true,
+      "path": "/mnt/nrf_ssd/nRF_dev_worktrees/fusion-phase3r24-exec-20260819T001921Z/BioSpur_Fusion/B306_Part/logs/quaternion_eskf_foundation_20260812/IMU_AXIS_UNIT_CONTRACT.json",
+      "scope": "firmware",
+      "sha256": "a1e522cb4db10963d53ed4f80dd15b53e0163ea954b745964162ad51bcfae7c3"
+    },
+    {
+      "claim": "q_NB active B-to-N wxyz; signed physical directions unmeasured",
+      "classification": "GENERAL_HARDWARE_GEOMETRY_ONLY",
+      "exists": true,
+      "path": "/mnt/nrf_ssd/nRF_dev_worktrees/fusion-phase3r24-exec-20260819T001921Z/BioSpur_Fusion/B306_Part/logs/quaternion_eskf_foundation_20260812/FRAME_CONVENTIONS.md",
+      "scope": "firmware",
+      "sha256": "6c92c5721ecc53367d242faeea3a9f952fdaa643fcd4b7e0c45d46b9ae2e911c"
+    },
+    {
+      "claim": "signed sensor-axis binding is invalid/unbound",
+      "classification": "GENERAL_HARDWARE_GEOMETRY_ONLY",
+      "exists": true,
+      "path": "/mnt/nrf_ssd/nRF_dev_worktrees/fusion-phase3r24-exec-20260819T001921Z/BioSpur_Fusion/B306_Part/logs/quaternion_eskf_foundation_20260812/FRAME_BINDING_SCHEMA.json",
+      "scope": "firmware",
+      "sha256": "e03f86db4079ac97119bf1d17e0c0350e1f4ec274f59cf57fca17e97a81ddeb4"
+    },
+    {
+      "claim": "signed little-endian register decode with no remap",
+      "classification": "GENERAL_HARDWARE_GEOMETRY_ONLY",
+      "exists": true,
+      "path": "/mnt/nrf_ssd/nRF_dev_worktrees/fusion-phase3r24-exec-20260819T001921Z/BioSpur_Fusion/B306_Part/firmware/src/imu.c",
+      "scope": "firmware",
+      "sha256": "df3503b30c856f8f26ee7ddb2dcae8465e8d36267b2768371b5ccef9c4779c3a"
+    }
+  ]
+}

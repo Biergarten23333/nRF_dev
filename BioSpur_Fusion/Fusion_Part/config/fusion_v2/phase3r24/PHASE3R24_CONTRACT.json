@@ -1,0 +1,41 @@
+{
+  "schema": "biospur-phase3r24-contract-v1",
+  "run_id": "phase3r24_20260819T001921Z",
+  "authoritative_start_sha": "3de382c718d84661a424fab2bc43abd042253484",
+  "r23_scientific_sha": "1294b436c5733a28b25b49e6e569c1f9e0845fed",
+  "master_seed": 20260819,
+  "relative_heading_order": [
+    "torso", "upper_arm_left", "forearm_left", "upper_arm_right",
+    "forearm_right", "thigh_left", "shank_left", "thigh_right", "shank_right"
+  ],
+  "rank_tolerances": [0.0001, 0.00001, 0.000001, 0.0000001, 0.00000001],
+  "worker_counts": [1, 4, 6],
+  "mode_contract": {
+    "stationarity_inf_gradient_max": 0.000001,
+    "merge_circular_rms_deg": 2.0,
+    "merge_max_coordinate_deg": 5.0,
+    "merge_sensitivity_deg": [1.0, 2.0, 5.0],
+    "minimum_independent_blocks_per_family": 5,
+    "bootstrap_replicates": 500,
+    "alternative_basin_frequency": 0.05,
+    "single_heading_half_width_max_deg": 15.0
+  },
+  "route_rules": {
+    "A": "DIRECTED_CHAIN_COMPLETE_BOUNDED only",
+    "B": "finite-support approximate directed chain with known center/sign",
+    "C": "missing center/sign, full-yaw support, revision unbound, vertical-only or position-only"
+  },
+  "counterfactual_sensitivity_deg": [5, 10, 15, 30],
+  "prompt_sha256": "758140c81657cacac0674920c5521020e683b0459a4f0caa3f11bca75ee6a86c",
+  "forbidden_numeric_inputs": ["H00", "H01", "H02", "P", "B1", "OpenSense", "UWB measurement"],
+  "scope_qualifiers": [
+    "OPERATOR_MAPPED_SESSION_SCOPE",
+    "HISTORICALLY_EXPOSED_RETROSPECTIVE_DEVELOPMENT_ONLY",
+    "GLOBAL_WORLD_YAW_UNAVAILABLE",
+    "AUTOMATIC_NODE_ASSOCIATION_DEFERRED",
+    "OPEN_SENSE_NOT_STARTED",
+    "PHASE4_NOT_STARTED",
+    "NO_UWB_MEASUREMENT_CONSUMPTION",
+    "NO_EXTERNAL_ACCURACY_OR_CLINICAL_CLAIM"
+  ]
+}

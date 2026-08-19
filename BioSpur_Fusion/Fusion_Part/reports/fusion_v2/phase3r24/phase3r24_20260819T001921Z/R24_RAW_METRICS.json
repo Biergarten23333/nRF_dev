@@ -1,0 +1,206 @@
+{
+  "access_incident": {
+    "accepted_candidate_UWB_measurement_array_materialization": 0,
+    "accepted_candidate_UWB_semantic_numeric_decode": 0,
+    "accepted_candidate_UWB_statistics_or_factor_consumption": 0,
+    "accepted_candidate_influence_on_config_or_verdict": 0,
+    "quarantined_transport_text_inspection_attempt": 1
+  },
+  "actual_symmetry": {
+    "admissible_mode_count": 0,
+    "exact_branch_count": 512,
+    "generator_rank": 9,
+    "remaining_generator_rank": 9,
+    "support_indeterminate_count": 512
+  },
+  "conditional_ensemble_created": false,
+  "consumption": {
+    "B1": 0,
+    "H00_H01_H02_numeric": 0,
+    "OpenSense": 0,
+    "P": 0,
+    "UWB_measurement": 0
+  },
+  "minimal_capture_plan_created": true,
+  "opensense_common_heading_prerequisite_ready": false,
+  "opensense_full_input_pipeline_ready": false,
+  "pelvis_authority": {
+    "classification_taxonomy": [
+      "SESSION_RECORDED_DIRECTED_METROLOGY",
+      "SESSION_RECORDED_APPROXIMATE_DONNING",
+      "GENERAL_HARDWARE_GEOMETRY_ONLY",
+      "PROTOCOL_SEMANTIC",
+      "IMU_DERIVED_CONDITIONAL",
+      "ASSUMPTION_ONLY"
+    ],
+    "gate_deg": 15,
+    "official_general_sources": [
+      {
+        "claim": "official WT61P product page: six-axis accelerometer/gyroscope and up-to-200-Hz product family",
+        "does_not_prove": "fitted C2CC revision, module-to-PCB transform, enclosure transform, or session donning",
+        "retrieved_bytes_sha256": "df2afa208990a1db3237c2e7332b5ef030c37bb10a84127961cc887e0f9d5925",
+        "scope": "GENERAL_HARDWARE_GEOMETRY_ONLY",
+        "url": "https://wit-motion.com/index.php/Module/37.html"
+      },
+      {
+        "blob_bytes_sha256": "9b1c061ccf0bfb43afee87e73c82ab13b67519cd14a09aad8d9cb2601bd370fe",
+        "claim": "official protocol definitions AX/AY/AZ=0x34/0x35/0x36 and GX/GY/GZ=0x37/0x38/0x39",
+        "does_not_prove": "physical package axes as assembled on the fitted C2CC PCB",
+        "scope": "GENERAL_HARDWARE_GEOMETRY_ONLY",
+        "upstream_commit": "e8f4e3afc02263e2ef15052dc758f45efaebe12f",
+        "url": "https://github.com/WITMOTION/WitStandardProtocol_JY901/blob/e8f4e3afc02263e2ef15052dc758f45efaebe12f/STM32F1/STM32Core_SDK_Normal/Source/wit_c_sdk/REG.h"
+      }
+    ],
+    "pelvis_hardware_id": "BSFC2CC",
+    "pelvis_layout_class": "C2CC_DISTINCT_FROM_H9",
+    "propagated_uncertainty_deg": null,
+    "required_links": [
+      {
+        "directed_sign_bound": false,
+        "from": "S_pelvis(t_ref)",
+        "geometry": "VERTICAL_OR_POSITION_ONLY",
+        "id": "P_protocol_to_S_pelvis_at_t_ref",
+        "reason": "subject facing is approximate and world definition is PENDING_MARK_AND_RECORD; pelvis reference posture/tolerance was not surveyed",
+        "source_bound": false,
+        "status": "NOT_PROVEN",
+        "to": "P_protocol"
+      },
+      {
+        "directed_sign_bound": false,
+        "from": "D",
+        "geometry": "VERTICAL_OR_POSITION_ONLY",
+        "id": "S_pelvis_to_actual_donning",
+        "reason": "waist-belt center/body-front is a placement statement; pcb face and directed edge were NOT_MEASURED",
+        "source_bound": true,
+        "status": "POSITION_ONLY",
+        "to": "S_pelvis(t_ref)"
+      },
+      {
+        "directed_sign_bound": false,
+        "from": "E",
+        "geometry": "UNKNOWN",
+        "id": "donning_to_enclosure",
+        "reason": "session photographs were declined and no keyed directed enclosure marker is recorded",
+        "source_bound": false,
+        "status": "NOT_PROVEN",
+        "to": "D"
+      },
+      {
+        "directed_sign_bound": false,
+        "from": "B",
+        "geometry": "UNKNOWN",
+        "id": "enclosure_to_pcb",
+        "reason": "no tracked C2CC assembly drawing/CAD or revision-bound transform was found",
+        "revision_conflict": true,
+        "source_bound": false,
+        "status": "REVISION_UNBOUND",
+        "to": "E"
+      },
+      {
+        "directed_sign_bound": false,
+        "from": "M",
+        "geometry": "UNKNOWN",
+        "id": "pcb_to_JY61P_package",
+        "reason": "no tracked C2CC layout/assembly file binds the fitted module orientation",
+        "revision_conflict": true,
+        "source_bound": false,
+        "status": "REVISION_UNBOUND",
+        "to": "B"
+      },
+      {
+        "directed_sign_bound": false,
+        "from": "I_register",
+        "geometry": "UNKNOWN",
+        "id": "package_to_output_register_axes",
+        "reason": "official product material is general hardware evidence; local physical-board axis contract remains UNMEASURED",
+        "source_bound": false,
+        "status": "NOT_PROVEN_FOR_FITTED_REVISION",
+        "to": "M"
+      },
+      {
+        "directed_sign_bound": true,
+        "from": "I_decoder",
+        "geometry": "DIRECTED_3D",
+        "id": "register_axes_to_decoder_output",
+        "reason": "signed little-endian AX/AY/AZ/GX/GY/GZ are decoded without permutation or sign remap",
+        "source_bound": true,
+        "status": "PROVEN_FROM_CODE",
+        "to": "I_register"
+      },
+      {
+        "directed_sign_bound": true,
+        "from": "I_decoder",
+        "geometry": "ACTIVE_SO3",
+        "id": "decoder_output_to_VQF_E_pelvis",
+        "reason": "official VQF 2.1.2 q6D is scalar-first active R_EiI; its yaw gauge is node-local",
+        "source_bound": true,
+        "status": "PROVEN_FROM_CODE_AND_OFFICIAL_UPSTREAM",
+        "to": "E_pelvis"
+      }
+    ],
+    "same_likelihood_reuse_allowed": false,
+    "schema": "biospur-phase3r24-physical-source-authority-v1",
+    "uncertainty_bounded": false
+  },
+  "pelvis_chain_classification": "CONFLICTING_OR_REVISION_UNBOUND",
+  "r23_reproduction": {
+    "actual_factor_count": 47,
+    "actually_optimized_RP1_multistarts": 65,
+    "best_objective": 253.36532762721518,
+    "candidate_payload_sha256": "eec32f0494725bfe5e66448f9510050816b246cc554fd1df3ca6d821a7deb973",
+    "development_uid_lineage_count": 1522793,
+    "exact_match": true,
+    "forbidden_combined_cache_read": false,
+    "input_hashes": {
+      "/mnt/nrf_ssd/nRF_dev_worktrees/fusion-phase3r23-evidence/phase3r23_20260818T232130Z/scientific/COMMON_HEADING_INFORMATION_MATRICES.npz": "ef67fbe20f33dcf28ba6d5969cf7a9f2a2003ef909eab95daa6f8737b2bcd29f",
+      "/mnt/nrf_ssd/nRF_dev_worktrees/fusion-phase3r23-evidence/phase3r23_20260818T232130Z/scientific/HEADING_EVIDENCE_FACTOR_GRAPH_ACTUAL.json": "16ea53dcbad6a3022d7bbfb2411049d2bb78f6d8e84a6cf736e52dfa78e84287",
+      "COMMON_HEADING_ACTUAL_INFORMATION_AUDIT.json": "ec02d514797428cfff6da5bfc5dd1eb5fef3857f0b1dfd59ba73ab1e7ce41817",
+      "COMMON_HEADING_MULTISTART_AND_MODE_REPORT.json": "8216cd07cb89c01d5797de62c12af04add180c4ee0fc9c9e426f7bf0c0d2f215",
+      "PHASE3R23_FINAL_RESULT.json": "a76c1ffce9bb1c1e5498888a48f4f30b6ec0e0a698f6f1a61ac8942055e08e50",
+      "PREVALIDATION_SESSION_STATIC_HEADING_CANDIDATE.json": "3eb117ebc8d1a6158e174d49efd4dca4e81917838288c631d6e02665bd6b6f0a"
+    },
+    "rank_nullity": {
+      "I0": {
+        "nullity": [
+          9
+        ],
+        "rank": [
+          0
+        ]
+      },
+      "I1": {
+        "nullity": [
+          5
+        ],
+        "rank": [
+          4
+        ]
+      },
+      "I2": {
+        "nullity": [
+          1
+        ],
+        "rank": [
+          8
+        ]
+      }
+    },
+    "saved_seed_candidate_count": 512,
+    "schema": "biospur-phase3r24-r23-baseline-reproduction-v1",
+    "stationarity_inf_gradient_norm": 3.300981177289941e-07,
+    "verdict": "PARTIAL_PHASE3R23_COMMON_HEADING_IDENTIFIABILITY"
+  },
+  "route": "C",
+  "schema": "biospur-phase3r24-raw-metrics-v1",
+  "scope_qualifiers": [
+    "OPERATOR_MAPPED_SESSION_SCOPE",
+    "HISTORICALLY_EXPOSED_RETROSPECTIVE_DEVELOPMENT_ONLY",
+    "GLOBAL_WORLD_YAW_UNAVAILABLE",
+    "AUTOMATIC_NODE_ASSOCIATION_DEFERRED",
+    "OPEN_SENSE_NOT_STARTED",
+    "PHASE4_NOT_STARTED",
+    "NO_UWB_MEASUREMENT_CONSUMPTION",
+    "NO_EXTERNAL_ACCURACY_OR_CLINICAL_CLAIM"
+  ],
+  "single_candidate_created": false
+}

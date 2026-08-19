@@ -1,0 +1,62 @@
+{
+  "capture_minutes": 3,
+  "equipment": [
+    "one rigid keyed directed marker on the C2CC enclosure or keyed C2CC fixture",
+    "one fixed camera seeing that marker and a marked P_protocol forward line (AprilTag/ArUco acceptable)",
+    "no UWB, no Phase4, no OpenSense"
+  ],
+  "existing_actions_to_resegment_without_new_capture": [
+    "04",
+    "05",
+    "08",
+    "09",
+    "10_or_18",
+    "11_or_19",
+    "14"
+  ],
+  "expected_cutset_closed": [
+    "continuous psi_GP null",
+    "forearm_left pi bit",
+    "forearm_right pi bit"
+  ],
+  "minimum_counts": {
+    "independent_blocks_per_family_per_time_bin": 5,
+    "left_forearm_directed_cycles": 15,
+    "pelvis_directed_blocks": 15,
+    "right_forearm_directed_cycles": 15
+  },
+  "one_time_mechanical_metrology_minutes": "5-10",
+  "operator_steps": [
+    "Rigidly key and photograph the directed C2CC marker; record which marker axis is device forward.",
+    "Survey or mark the protocol forward line in the camera frame; do not infer it from IMU yaw.",
+    "At each of early/mid/late bins, stand naturally facing the mark for five short independent holds.",
+    "Perform five left then five right flexion-first cycles with distal markers visible; natural posture shifts are allowed.",
+    "Do not require fixed feet or machine-perfect poses; only first-motion direction and marker identity must remain visible."
+  ],
+  "purpose": "close one continuous pelvis anchor and two missing forearm sign edges; not repeat all 19 actions",
+  "reuse_scope": "calibration/session only; runtime remains IMU-only after frozen calibration",
+  "rounds": [
+    {
+      "left_forearm": "5 flexion-first cycles with a visible distal-direction marker; reset naturally between cycles",
+      "pelvis_reference": "5 independent 2 s holds facing the marked protocol-forward line; pelvis neutral but natural human variation allowed",
+      "right_forearm": "5 flexion-first cycles with a visible distal-direction marker; reset naturally between cycles",
+      "time_bin": "early",
+      "transition_seconds": 10
+    },
+    {
+      "left_forearm": "5 flexion-first cycles with a visible distal-direction marker; reset naturally between cycles",
+      "pelvis_reference": "5 independent 2 s holds facing the marked protocol-forward line; pelvis neutral but natural human variation allowed",
+      "right_forearm": "5 flexion-first cycles with a visible distal-direction marker; reset naturally between cycles",
+      "time_bin": "mid",
+      "transition_seconds": 10
+    },
+    {
+      "left_forearm": "5 flexion-first cycles with a visible distal-direction marker; reset naturally between cycles",
+      "pelvis_reference": "5 independent 2 s holds facing the marked protocol-forward line; pelvis neutral but natural human variation allowed",
+      "right_forearm": "5 flexion-first cycles with a visible distal-direction marker; reset naturally between cycles",
+      "time_bin": "late",
+      "transition_seconds": 10
+    }
+  ],
+  "schema": "biospur-phase3r24-minimal-new-heading-calibration-capture-plan-v1"
+}

@@ -1,0 +1,61 @@
+{
+  "actual_reduced_R23_objective": {
+    "GF2_generator_rank": 9,
+    "actually_optimized_RP1_multistart_count": 65,
+    "analytic_invariance": true,
+    "base_stationarity_inf_gradient_norm": 3.300981177289941e-07,
+    "exact_branch_count": 512,
+    "finite_difference_invariance": true,
+    "generator_order": [
+      "torso",
+      "upper_arm_left",
+      "forearm_left",
+      "upper_arm_right",
+      "forearm_right",
+      "thigh_left",
+      "shank_left",
+      "thigh_right",
+      "shank_right"
+    ],
+    "independently_optimized_S1_seed_count": 0,
+    "stationarity_gate": 1e-06,
+    "stationary_exact_representations": 512
+  },
+  "continuous_symmetry": {
+    "generator": "h_i <- h_i+alpha for all i; psi_GP <- psi_GP+alpha",
+    "group": "S1",
+    "rank": 1,
+    "status": "PROVEN_FROM_CODE_AND_ARCHIVED_NUMERIC_EVIDENCE"
+  },
+  "implementation_semantic_findings": {
+    "affected_candidate_rows": 512,
+    "directed_semantic_actions_erased_by_R23_block_axis_reduction": [
+      "04_shoulder_left",
+      "05_shoulder_right",
+      "08_hip_left",
+      "09_hip_right",
+      "10_knee_left_seated",
+      "11_knee_right_seated",
+      "14_trunk_flex_extend",
+      "18_heel_to_butt_left",
+      "19_heel_to_butt_right"
+    ],
+    "independent_bug_classes": 1,
+    "unconditional_512_physical_mode_label": "PROVEN_BRANCH_ENUMERATION_OR_FACTOR_SEMANTICS_BUG",
+    "unique_heading_coordinates_with_existing_directed_semantics_but_no_R23_directed_factor": 7
+  },
+  "invariance_matrix_sha256": "7603b02ba7182638d3aa7d0f9fdf6ec3c44e6a9fb3e417dbfd4ee4da8f14cde6",
+  "latent_space_audited": "(h_1..h_9, psi_GP, RP2 axis signs, protocol sign modes)",
+  "physical_full_3D_interpretation": {
+    "GF2_generator_rank": "NOT_PROVEN",
+    "exact_branch_count": "NOT_PROVEN",
+    "reason": "R2.3 projected every axis to horizontal RP1 and discarded vertical component/sign; h+pi is not generally an RP2 sign flip for a nonhorizontal 3D axis"
+  },
+  "schema": "biospur-phase3r24-pi-branch-symmetry-semantics-audit-v1",
+  "support": {
+    "ADMISSIBLE_MODE": 0,
+    "MODE_SUPPORT_INDETERMINATE": 512,
+    "nonstationary_seed": 0,
+    "reason": "all generated representatives inherit stationarity analytically, but fewer than five independent blocks in critical families prevent support qualification"
+  }
+}
