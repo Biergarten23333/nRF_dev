@@ -114,12 +114,32 @@ def reference_axis(q: np.ndarray, *, axis_sign: int = -1,
 
 def directed_residual(h_i: float, axis_yaw: float, psi_gp: float,
                       target_yaw_p: float, *, wrap: str = "2pi") -> float:
+    """Explicit legacy H/psi wrapper; canonical K consumers use the K form."""
     raw = h_i + axis_yaw - psi_gp - target_yaw_p
     if wrap == "2pi":
         return float(wrap_2pi(raw))
     if wrap == "mod_pi":
         return float(wrap_mod_pi(raw))
     raise ValueError(wrap)
+
+
+def directed_residual_k(k_protocol_relative_rad: float, axis_yaw: float,
+                        target_yaw_p: float) -> float:
+    """Gauge-invariant directed residual in protocol frame P."""
+    values = (k_protocol_relative_rad, axis_yaw, target_yaw_p)
+    if not all(math.isfinite(float(value)) for value in values):
+        raise ValueError("directed residual inputs must be finite radians")
+    return float(wrap_2pi(
+        float(k_protocol_relative_rad) + float(axis_yaw) - float(target_yaw_p)
+    ))
+
+
+def k_from_h_psi(h_common_rad: float, psi_protocol_to_common_rad: float) -> float:
+    """Explicit adapter for callers whose input is already typed as paired H/psi."""
+    if not all(math.isfinite(float(value)) for value in
+               (h_common_rad, psi_protocol_to_common_rad)):
+        raise ValueError("H/psi adapter inputs must be finite radians")
+    return float(wrap_2pi(float(h_common_rad) - float(psi_protocol_to_common_rad)))
 
 
 def pelvis_protocol_gauge(axis_yaw: np.ndarray, target_yaw_p: float = 0.0,
@@ -229,7 +249,23 @@ def matrix_rank(matrix: np.ndarray, tolerance: float = 1e-12) -> int:
 
 
 def canonical_result_payload(result: Mapping) -> dict:
-    """Remove execution metadata from a formal replay before hashing."""
+    """Remove execution metadata and refuse semantically untyped angle fields."""
+    forbidden = {"heading", "headings", "heading_rad", "relative_heading_rad"}
+
+    def inspect(value: object, path: str = "payload") -> None:
+        if isinstance(value, Mapping):
+            bad = forbidden.intersection(value)
+            if bad:
+                raise ValueError(
+                    f"untyped heading serialization forbidden at {path}: {sorted(bad)}"
+                )
+            for key, child in value.items():
+                inspect(child, f"{path}.{key}")
+        elif isinstance(value, (list, tuple)):
+            for index, child in enumerate(value):
+                inspect(child, f"{path}[{index}]")
+
+    inspect(result)
     excluded = {"execution", "start_utc", "end_utc", "wall_seconds",
                 "invocation", "stdout_log", "stderr_log"}
     return {k: v for k, v in result.items() if k not in excluded}

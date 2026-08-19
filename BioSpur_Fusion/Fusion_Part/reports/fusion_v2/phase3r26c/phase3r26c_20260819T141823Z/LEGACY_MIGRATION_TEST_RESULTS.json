@@ -1,0 +1,54 @@
+{
+  "all_passed": true,
+  "executed_count": 8,
+  "passed_count": 8,
+  "schema": "biospur.phase3r26c.legacy_migration_test_results.v1",
+  "tests": [
+    {
+      "expected_detector": "authorized-source-SHA validator",
+      "observed_detector": "HeadingGaugeValidationError: source SHA mismatch",
+      "passed": true,
+      "test": "source_sha_mismatch"
+    },
+    {
+      "expected_detector": "legacy psi-zero validator",
+      "observed_detector": "HeadingGaugeValidationError: representative_psi_GP_rad missing",
+      "passed": true,
+      "test": "representative_missing"
+    },
+    {
+      "expected_detector": "legacy psi-zero validator",
+      "observed_detector": "HeadingGaugeValidationError: representative_psi_GP_rad must be explicitly zero",
+      "passed": true,
+      "test": "representative_nonzero"
+    },
+    {
+      "expected_detector": "legacy schema validator",
+      "observed_detector": "HeadingGaugeValidationError: unknown legacy source schema",
+      "passed": true,
+      "test": "legacy_unknown_schema"
+    },
+    {
+      "expected_detector": "legacy coordinate-order validator",
+      "observed_detector": "HeadingGaugeValidationError: legacy coordinate order mismatch",
+      "passed": true,
+      "test": "legacy_coordinate_order_mismatch"
+    },
+    {
+      "expected_detector": "typed legacy-field validator",
+      "observed_detector": "HeadingGaugeValidationError: legacy relative-heading coordinate set mismatch",
+      "passed": true,
+      "test": "legacy_only_untyped_heading"
+    },
+    {
+      "expected_detector": "continuous-orbit provenance validator",
+      "observed_detector": "HeadingGaugeValidationError: legacy continuous-orbit provenance missing",
+      "passed": true,
+      "test": "legacy_provenance_incomplete"
+    },
+    {
+      "passed": true,
+      "test": "authorized_legacy_migration"
+    }
+  ]
+}

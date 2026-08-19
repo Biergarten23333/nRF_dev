@@ -1,0 +1,125 @@
+{
+  "all_passed": true,
+  "executed_count": 14,
+  "failed_count": 0,
+  "literal_true_count": 0,
+  "mutations": [
+    {
+      "actual_altered_value": -3.141592652589793,
+      "expected_detector": "derived-H algebra validator",
+      "mutation": "missing +psi when deriving H",
+      "observed_detector": "inconsistent derived H",
+      "passed": true,
+      "production_function": "validate_future_candidate_payload"
+    },
+    {
+      "actual_altered_value": -1.681592652589793,
+      "expected_detector": "derived-H algebra validator",
+      "mutation": "double +psi",
+      "observed_detector": "inconsistent derived H",
+      "passed": true,
+      "production_function": "validate_future_candidate_payload"
+    },
+    {
+      "actual_altered_value": 2.7815926545897933,
+      "expected_detector": "independent residual oracle",
+      "mutation": "residual subtracts psi from K",
+      "observed_detector": 0.7300000000000004,
+      "passed": true,
+      "production_function": "directed_residual_k"
+    },
+    {
+      "actual_altered_value": -2.041592652589793,
+      "expected_detector": "independent residual oracle",
+      "mutation": "residual omits psi from H",
+      "observed_detector": 0.73,
+      "passed": true,
+      "production_function": "directed_residual"
+    },
+    {
+      "actual_altered_value": -3.141592652589793,
+      "expected_detector": "independent H oracle",
+      "mutation": "K treated as H",
+      "observed_detector": 0.73,
+      "passed": true,
+      "production_function": "HeadingGaugeState.h_common_rad"
+    },
+    {
+      "actual_altered_value": -2.411592652589793,
+      "expected_detector": "independent residual oracle",
+      "mutation": "H treated as K",
+      "observed_detector": 0.73,
+      "passed": true,
+      "production_function": "directed_residual_k"
+    },
+    {
+      "actual_altered_value": 0.73,
+      "expected_detector": "exact-field validator",
+      "mutation": "serializer loses psi",
+      "observed_detector": "heading state payload fields are not exact",
+      "passed": true,
+      "production_function": "HeadingGaugeState.from_payload"
+    },
+    {
+      "actual_altered_value": "biospur.phase3.heading_gauge_state.v1",
+      "expected_detector": "exact-field validator",
+      "mutation": "serializer erases semantic version",
+      "observed_detector": "heading state payload fields are not exact",
+      "passed": true,
+      "production_function": "HeadingGaugeState.from_payload"
+    },
+    {
+      "actual_altered_value": 0.3700000010000002,
+      "expected_detector": "directed S1 oracle",
+      "mutation": "wrap-pi used instead of wrap-2pi",
+      "observed_detector": 3.141592653589793,
+      "passed": true,
+      "production_function": "directed_residual_k"
+    },
+    {
+      "actual_altered_value": 12.326814694820413,
+      "expected_detector": "all-512 score equivariance",
+      "mutation": "branch bits change under common gauge shift",
+      "observed_detector": 12.326814694820413,
+      "passed": true,
+      "production_function": "evaluate_branches"
+    },
+    {
+      "actual_altered_value": "phase3r26_v1",
+      "expected_detector": "semantic-cache validator",
+      "mutation": "stale cache accepted",
+      "observed_detector": "stale or unknown semantic cache key",
+      "passed": true,
+      "production_function": "validate_semantic_cache"
+    },
+    {
+      "actual_altered_value": "biospur.phase3r26.nine_heading_conditional_candidate.v1",
+      "expected_detector": "versioned candidate validator",
+      "mutation": "legacy R2.6 candidate accepted",
+      "observed_detector": "legacy or unknown candidate schema refused",
+      "passed": true,
+      "production_function": "validate_future_candidate_payload"
+    },
+    {
+      "actual_altered_value": 0.0,
+      "expected_detector": "derived-H algebra validator",
+      "mutation": "inconsistent derived H not detected",
+      "observed_detector": "inconsistent derived H",
+      "passed": true,
+      "production_function": "validate_future_candidate_payload"
+    },
+    {
+      "actual_altered_value": [
+        "upper_arm_left",
+        "torso"
+      ],
+      "expected_detector": "fixed-order validator",
+      "mutation": "coordinate order swap not detected",
+      "observed_detector": "coordinate_order does not exactly match the fixed order",
+      "passed": true,
+      "production_function": "HeadingGaugeState"
+    }
+  ],
+  "passed_count": 14,
+  "schema": "biospur.phase3r26c.production_mutation_results.v1"
+}

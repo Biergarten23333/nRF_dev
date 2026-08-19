@@ -1,0 +1,19 @@
+{
+  "canonical_stored_fields": [
+    "k_protocol_relative_rad_by_coordinate",
+    "psi_protocol_to_common_rad"
+  ],
+  "canonical_unit": "rad",
+  "derived_read_only_fields": [
+    "h_common_rad_by_coordinate"
+  ],
+  "immutable": true,
+  "relations": {
+    "R_GI": "Rz(h_common_rad) R_EiI",
+    "R_PI": "Rz(k_protocol_relative_rad) R_EiI",
+    "h_common_rad": "wrap_2pi(k_protocol_relative_rad + psi_protocol_to_common_rad)"
+  },
+  "semantic_cache_key": "heading_gauge_state_v1",
+  "semantic_version": "biospur.phase3.heading_gauge_state.v1",
+  "wrap_convention": "[-pi,pi)"
+}

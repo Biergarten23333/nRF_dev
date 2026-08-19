@@ -1,0 +1,55 @@
+{
+  "$id": "biospur.phase3.heading_gauge_state.v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "coordinate_order": {
+      "maxItems": 9,
+      "minItems": 9,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "k_protocol_relative_rad_by_coordinate": {
+      "maxProperties": 9,
+      "minProperties": 9,
+      "type": "object"
+    },
+    "migration_id": {
+      "const": "r23_psi0_representative_to_k_v1"
+    },
+    "psi_protocol_to_common_rad": {
+      "exclusiveMaximum": 3.141592653589793,
+      "minimum": -3.141592653589793,
+      "type": "number"
+    },
+    "semantic_cache_key": {
+      "const": "heading_gauge_state_v1"
+    },
+    "semantic_version": {
+      "const": "biospur.phase3.heading_gauge_state.v1"
+    },
+    "source_schema": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "source_solution_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "wrap_convention": {
+      "const": "[-pi,pi)"
+    }
+  },
+  "required": [
+    "semantic_version",
+    "coordinate_order",
+    "k_protocol_relative_rad_by_coordinate",
+    "psi_protocol_to_common_rad",
+    "wrap_convention",
+    "source_solution_sha256",
+    "source_schema",
+    "migration_id",
+    "semantic_cache_key"
+  ],
+  "type": "object"
+}

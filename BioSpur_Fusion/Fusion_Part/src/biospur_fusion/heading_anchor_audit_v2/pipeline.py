@@ -15,10 +15,19 @@ import numpy as np
 from .core import (
     COORDINATE_ORDER, canonical_json_bytes, canonical_result_payload,
     circular_dispersion_deg, circular_mean, directed_residual,
+    directed_residual_k,
     directed_structural_rows, evaluate_reduced_graph, factor_coordinate,
     file_sha, gf2_rank, matrix_rank, payload_sha, pelvis_protocol_gauge,
     point_distances, quat_to_matrix_wxyz, reference_axis, rz,
     sector_distances, wrap_2pi, wrap_mod_pi, write_json,
+)
+from .heading_gauge import (
+    AUTHORIZED_R23_SOURCE_SHA256,
+    BranchEvaluation,
+    HeadingGaugeState,
+    HeadingGaugeValidationError,
+    migrate_r23_psi_zero_candidate,
+    validate_future_candidate_payload,
 )
 
 RUN_ID = "phase3r26_20260819T091447Z"
@@ -181,18 +190,20 @@ def reproduce_defects(repo: Path, ledger: AccessLedger, report: Path) -> dict:
     return result
 
 
-def _base_solution(candidate: Mapping) -> tuple[dict[str, float], str]:
-    modes = candidate["joint_modes"]
-    zero = next(row for row in modes if row["pi_branch_bits"] == [0]*9)
-    headings = {name:float(zero["relative_heading_rad"][name]) for name in COORDINATE_ORDER}
-    return headings, payload_sha({"coordinate_order":list(COORDINATE_ORDER),"headings":headings,
-                                  "objective":zero["objective"]})
+def _base_solution(candidate: Mapping, *, source_solution_sha256: str) -> HeadingGaugeState:
+    """Fail-closed R2.3 boundary preserving the psi-zero representative as K."""
+    return migrate_r23_psi_zero_candidate(
+        candidate, source_solution_sha256=source_solution_sha256
+    )
 
 
 def audit_repair(repo: Path, ledger: AccessLedger, report: Path,
-                 candidate: Mapping, graph: Mapping,
+                 state: HeadingGaugeState, graph: Mapping,
                  information_matrices: Mapping[str,np.ndarray]) -> dict:
-    base, solution_sha = _base_solution(candidate)
+    if not isinstance(state, HeadingGaugeState):
+        raise TypeError("typed HeadingGaugeState required")
+    base = state.k_protocol_relative_rad_by_coordinate
+    solution_sha = state.source_solution_sha256
     edges = graph["edges"]
     before = evaluate_reduced_graph(edges, base, 0.0)
     tolerance = 1e-12
@@ -229,8 +240,8 @@ def audit_repair(repo: Path, ledger: AccessLedger, report: Path,
     for bits in itertools.product((0,1),repeat=9):
         changed=False
         for i,name in enumerate(COORDINATE_ORDER):
-            before_r=directed_residual(base[name],0.37,0.11,-0.29)
-            after_r=directed_residual(base[name]+math.pi*bits[i],0.37,0.11,-0.29)
+            before_r=directed_residual_k(base[name],0.37,-0.29)
+            after_r=directed_residual_k(base[name]+math.pi*bits[i],0.37,-0.29)
             changed |= abs(float(wrap_2pi(after_r-before_r)))>tolerance
         if not changed:
             directed_invariant.append(list(bits))
@@ -255,7 +266,11 @@ def audit_repair(repo: Path, ledger: AccessLedger, report: Path,
             "classification":"NUMERIC_PRODUCTION_RESIDUAL_CHECK",
             "factor_count":len(edges),"candidate_count":512,"invariant_count":len(invariant_bits),
             "GF2_dimension_from_observed_invariant_subgroup":subgroup_rank,
-            "input_state":{"headings_rad":base,"psi_GP_rad":0.0},
+            "input_state":{
+                "k_protocol_relative_rad_by_coordinate":dict(base),
+                "psi_protocol_to_common_rad":0.0,
+                "heading_gauge_state_sha256":state.payload_sha256(),
+            },
             "tolerance":tolerance,"rows":rows,
         },
         "I3_weighted_information":"UNAVAILABLE_UNQUANTIFIED_DONNING_SIGMA",
@@ -385,55 +400,80 @@ def _reference_yaws(extraction: Mapping) -> dict[str,float]:
             for row in extraction["devices"].values()}
 
 
-def evaluate_branches(base: Mapping[str,float], reference: Mapping[str,float],
-                      psi_gp: float) -> tuple[dict, dict]:
+def evaluate_branches(state: HeadingGaugeState,
+                      reference: Mapping[str,float]) -> BranchEvaluation:
+    """Evaluate all pi branches canonically in K; psi is never a score input."""
+    if not isinstance(state, HeadingGaugeState):
+        raise TypeError("evaluate_branches requires typed HeadingGaugeState")
+    if set(reference) != set(COORDINATE_ORDER):
+        raise HeadingGaugeValidationError("reference coordinate set mismatch")
+    if not all(math.isfinite(float(reference[name])) for name in COORDINATE_ORDER):
+        raise HeadingGaugeValidationError("reference azimuths must be finite")
     candidates = []
     tolerance = 1e-12
     for bits in itertools.product((0,1),repeat=9):
+        branch_state = state.with_branch_bits(bits)
         per_node = []
         score = 0.0; strict = True
         for i,segment in enumerate(COORDINATE_ORDER):
-            h = float(wrap_2pi(base[segment]+math.pi*bits[i]))
-            world_yaw = float(wrap_2pi(h+reference[segment]))
-            body_yaw = float(wrap_2pi(world_yaw-psi_gp))
+            k = branch_state.k_protocol_relative_rad(segment)
+            h = branch_state.h_common_rad(segment)
+            protocol_axis_yaw = float(wrap_2pi(k + float(reference[segment])))
             target = TARGETS[segment]
             if target["type"] == "point":
-                delta = float(wrap_2pi(body_yaw-target["azimuth"]))
+                delta = directed_residual_k(k, float(reference[segment]), target["azimuth"])
                 primary,antipodal,margin = point_distances(delta)
             else:
-                primary,antipodal,margin = sector_distances(body_yaw,target["start"],target["stop"])
+                primary,antipodal,margin = sector_distances(
+                    protocol_axis_yaw,target["start"],target["stop"]
+                )
                 delta = None
             strict &= margin > tolerance
             score += primary
             per_node.append({
                 "segment":segment,"device":target["device"],"target":target["label"],
-                "selected_heading_rad":h,"actual_reference_azimuth_rad":reference[segment],
-                "candidate_axis_azimuth_in_P_rad":body_yaw,"directed_delta_rad":delta,
+                "k_protocol_relative_rad":k,
+                "psi_protocol_to_common_rad":branch_state.psi_protocol_to_common_rad,
+                "h_common_rad_derived":h,
+                "h_common_derivation":"wrap_2pi(k_protocol_relative_rad + psi_protocol_to_common_rad)",
+                "actual_reference_azimuth_rad":reference[segment],
+                "candidate_axis_azimuth_in_P_rad":protocol_axis_yaw,"directed_delta_rad":delta,
                 "primary_distance_rad":primary,"primary_distance_deg":math.degrees(primary),
                 "antipodal_distance_rad":antipodal,"antipodal_distance_deg":math.degrees(antipodal),
                 "margin_rad":margin,"margin_deg":math.degrees(margin),
                 "preference":"PRIMARY" if margin>tolerance else "ANTIPODAL" if margin < -tolerance else "SIGN_INDETERMINATE",
             })
         candidates.append({"bit_vector":list(bits),"per_node_directed_distance":per_node,
-                           "pelvis_gauge":{"psi_GP_rad":psi_gp,"psi_GP_deg":math.degrees(psi_gp)},
+                           "heading_gauge_state_sha256":branch_state.payload_sha256(),
                            "total_unweighted_semantic_score_rad":score,
                            "feasible_or_indeterminate":"FEASIBLE_ALL_PRIMARY" if strict else "NOT_ALL_PRIMARY_OR_INDETERMINATE"})
     feasible = [row for row in candidates if row["feasible_or_indeterminate"] == "FEASIBLE_ALL_PRIMARY"]
     selected = feasible[0] if len(feasible)==1 else None
     result = {
-        "schema":"biospur.phase3r26.actual_branch_selection.v1","candidate_count":len(candidates),
+        "schema":"biospur.phase3.heading_branch_selection.v1","candidate_count":len(candidates),
         "feasible_all_primary_count":len(feasible),"exactly_one_branch_selected":len(feasible)==1,
         "selected_bit_vector":selected["bit_vector"] if selected else None,
         "selected_total_unweighted_semantic_score_rad":selected["total_unweighted_semantic_score_rad"] if selected else None,
         "selection_evidence":"OPERATOR_ATTESTED_SESSION_SPECIFIC_DONNING",
         "validation_claim":False,"external_accuracy_claim":False,
     }
-    return {"schema":"biospur.phase3r26.actual_512_branch_evaluation.v1","candidates":candidates},result
+    evaluation = {
+        "schema":"biospur.phase3.heading_512_branch_evaluation.v1",
+        "canonical_branch_variable":"k_protocol_relative_rad",
+        "psi_is_independent_score_input":False,
+        "candidates":candidates,
+    }
+    return BranchEvaluation.create(state, evaluation, result)
 
 
-def validate_report_consistency(final: Mapping, evaluation: Mapping,
-                                selection: Mapping, mutations: Mapping,
+def validate_report_consistency(final: Mapping, branch_evaluation: BranchEvaluation,
+                                mutations: Mapping,
                                 candidate: Mapping|None) -> None:
+    if not isinstance(branch_evaluation, BranchEvaluation):
+        raise TypeError("typed BranchEvaluation required")
+    envelope = branch_evaluation.to_payload()
+    evaluation = envelope["evaluation"]
+    selection = envelope["selection"]
     if len(evaluation["candidates"]) != 512:
         raise RuntimeError("summary/detail mismatch: candidate count")
     feasible=sum(x["feasible_or_indeterminate"]=="FEASIBLE_ALL_PRIMARY" for x in evaluation["candidates"])
@@ -443,9 +483,35 @@ def validate_report_consistency(final: Mapping, evaluation: Mapping,
     if passed != mutations["passed_count"] or len(mutations["mutations"]) != mutations["executed_count"]:
         raise RuntimeError("summary/detail mismatch: mutation count")
     if candidate is not None:
-        unsigned=dict(candidate); claimed=unsigned.pop("candidate_payload_SHA256")
-        if payload_sha(unsigned) != claimed or final["candidate_payload_sha256"] != claimed:
-            raise RuntimeError("candidate payload SHA mismatch")
+        validate_future_candidate_payload(candidate, branch_evaluation.heading_state)
+
+
+def selected_branch(branch_evaluation: BranchEvaluation) -> Mapping | None:
+    if not isinstance(branch_evaluation, BranchEvaluation):
+        raise TypeError("typed BranchEvaluation required")
+    envelope = branch_evaluation.to_payload()
+    bits = envelope["selection"]["selected_bit_vector"]
+    if bits is None:
+        return None
+    return next(
+        (row for row in envelope["evaluation"]["candidates"]
+         if row["bit_vector"] == bits),
+        None,
+    )
+
+
+def build_directional_margin_report(branch_evaluation: BranchEvaluation) -> dict:
+    """Construct branch-preference margins only from a typed evaluation."""
+    selected = selected_branch(branch_evaluation)
+    rows = selected["per_node_directed_distance"] if selected else []
+    return {
+        "semantic_version":"biospur.phase3.heading_branch_preference_margins.v1",
+        "semantic_cache_key":branch_evaluation.heading_state.semantic_cache_key,
+        "heading_gauge_state_sha256":branch_evaluation.heading_state.payload_sha256(),
+        "meaning":"branch preference only; not accuracy",
+        "selected":rows,
+        "minimum":min(rows,key=lambda row:row["margin_rad"]) if rows else None,
+    }
 
 
 def _load_heading_fit(ledger: AccessLedger) -> tuple[dict,dict[str,np.ndarray]]:
@@ -462,11 +528,20 @@ def _load_heading_fit(ledger: AccessLedger) -> tuple[dict,dict[str,np.ndarray]]:
     return manifest,arrays
 
 
-def first_motion_crosscheck(ledger: AccessLedger, selected: Mapping,
-                            psi_gp: float, frontend_manifest: Mapping) -> dict:
+def first_motion_crosscheck(ledger: AccessLedger,
+                            branch_evaluation: BranchEvaluation,
+                            frontend_manifest: Mapping) -> dict:
+    if not isinstance(branch_evaluation, BranchEvaluation):
+        raise TypeError("typed BranchEvaluation required")
+    selected = selected_branch(branch_evaluation)
+    if selected is None:
+        raise HeadingGaugeValidationError("crosscheck requires exactly one typed branch")
     _manifest,arrays=_load_heading_fit(ledger)
     nodes=sorted(frontend_manifest["mapping"])
-    heading_by_segment={row["segment"]:row["selected_heading_rad"] for row in selected["per_node_directed_distance"]}
+    k_by_segment={
+        row["segment"]:row["k_protocol_relative_rad"]
+        for row in selected["per_node_directed_distance"]
+    }
     plans=(
         ("upper_arm_left","04_shoulder_left",np.array((1.,0.,0.))),
         ("upper_arm_right","05_shoulder_right",np.array((-1.,0.,0.))),
@@ -499,10 +574,11 @@ def first_motion_crosscheck(ledger: AccessLedger, selected: Mapping,
             window=np.arange(onset,stop); window=window[norms[window]>threshold]
             matrices=quat_to_matrix_wxyz(np.asarray(arrays["q_EI_wxyz"][idx[window]],float))
             gyro_e=np.einsum("nij,nj->ni",matrices,gyro[window])
-            gyro_g=(rz(heading_by_segment[segment])@np.mean(gyro_e,axis=0))
-            target_g=rz(psi_gp)@target_p
-            denom=float(np.linalg.norm(gyro_g)*np.linalg.norm(target_g))
-            cosine=float(np.dot(gyro_g,target_g)/denom) if denom>0 else 0.0
+            # The authorized target is expressed in protocol frame P, so this
+            # consumer uses R_PI=Rz(k)R_EiI directly.  Psi is not an input.
+            gyro_p=(rz(k_by_segment[segment])@np.mean(gyro_e,axis=0))
+            denom=float(np.linalg.norm(gyro_p)*np.linalg.norm(target_p))
+            cosine=float(np.dot(gyro_p,target_p)/denom) if denom>0 else 0.0
             cycles.append({"cycle_ordinal":cycle,"onset_common_time_ns":int(arrays["common_time_ns"][idx[onset]]),
                            "threshold_rad_s":threshold,"onset_norm_rad_s":float(norms[onset]),
                            "signed_cosine_to_authorized_target":cosine,
@@ -514,7 +590,7 @@ def first_motion_crosscheck(ledger: AccessLedger, selected: Mapping,
                 "CONFLICT" if len(reliable)>=2 and conflict/len(reliable)>=0.75 else
                 "SIGN_INDETERMINATE")
         results.append({"segment":segment,"device":device,"action_id":action,
-                        "method":"fresh thresholded first-motion resegmentation; signed gyro transformed by real VQF and selected heading",
+                        "method":"fresh thresholded first-motion resegmentation; signed gyro transformed by real VQF and typed R_PI",
                         "cycles":cycles,"reliable_cycle_count":len(reliable),
                         "consistent_cycle_count":consistent,"conflict_cycle_count":conflict,
                         "family_reliability_rule":"at least 2 signed cycles and >=75% agreement; |cosine|>0.20",
@@ -532,8 +608,16 @@ def first_motion_crosscheck(ledger: AccessLedger, selected: Mapping,
     }
 
 
-def support_and_bootstrap(ledger: AccessLedger, selected_bits: Sequence[int],
-                          base: Mapping[str,float], graph: Mapping) -> dict:
+def support_and_bootstrap(ledger: AccessLedger,
+                          branch_evaluation: BranchEvaluation,
+                          graph: Mapping) -> dict:
+    if not isinstance(branch_evaluation, BranchEvaluation):
+        raise TypeError("typed BranchEvaluation required")
+    selected = selected_branch(branch_evaluation)
+    if selected is None:
+        raise HeadingGaugeValidationError("bootstrap requires exactly one typed branch")
+    selected_bits = selected["bit_vector"]
+    base = branch_evaluation.heading_state.k_protocol_relative_rad_by_coordinate
     bootstrap_path=R23_EVIDENCE/"COMMON_HEADING_JOINT_BOOTSTRAP_SAMPLES.npz"
     bootstrap=ledger.npz(bootstrap_path,"branch-fixed existing fit-side bootstrap",
                          "AUTHORIZED_FIT_SIDE_AGGREGATE_NUMERIC")
@@ -621,9 +705,20 @@ def _mean_yaws_from_series(series: Mapping[str,np.ndarray], convention: str,
     return result
 
 
-def production_mutations(base: Mapping[str,float], references: Mapping[str,float],
-                         psi_gp: float, series: Mapping[str,np.ndarray],
-                         selected_eval: Mapping, graph: Mapping) -> dict:
+def production_mutations(state: HeadingGaugeState,
+                         references: Mapping[str,float],
+                         series: Mapping[str,np.ndarray],
+                         branch_evaluation: BranchEvaluation,
+                         graph: Mapping) -> dict:
+    if not isinstance(state, HeadingGaugeState):
+        raise TypeError("typed HeadingGaugeState required")
+    if not isinstance(branch_evaluation, BranchEvaluation):
+        raise TypeError("typed BranchEvaluation required")
+    selected_eval = selected_branch(branch_evaluation)
+    if selected_eval is None:
+        raise HeadingGaugeValidationError("mutation suite requires a selected typed branch")
+    base = state.k_protocol_relative_rad_by_coordinate
+    psi_gp = state.psi_protocol_to_common_rad
     rows=[]
     def add(mid,path,input_value,expected,observed,passed):
         rows.append({"mutation_id":mid,"production_path_exercised":path,
@@ -653,10 +748,10 @@ def production_mutations(base: Mapping[str,float], references: Mapping[str,float
         right.append(abs(wrong-row["primary_distance_rad"]))
     add("left_multiplication_to_right","directed_world_axis",{"composition":"R_EI Rz(h)"},
         "directed distances change",max(right),max(right)>1e-3)
-    wrap_delta=max(abs(directed_residual(base[s]+math.pi,references[s],psi_gp,
-                                         TARGETS[s].get("azimuth",0.0),wrap="2pi")-
-                       directed_residual(base[s]+math.pi,references[s],psi_gp,
-                                         TARGETS[s].get("azimuth",0.0),wrap="mod_pi"))
+    wrap_delta=max(abs(directed_residual_k(base[s]+math.pi,references[s],
+                                           TARGETS[s].get("azimuth",0.0))-
+                       directed_residual(base[s]+math.pi,references[s],
+                                         0.0,TARGETS[s].get("azimuth",0.0),wrap="mod_pi"))
                    for s in COORDINATE_ORDER if TARGETS[s]["type"]=="point")
     add("wrap_2pi_to_wrap_mod_pi","directed_residual",{"wrap":"mod_pi"},
         "pi sign sensitivity is erased",wrap_delta,wrap_delta>3.0)
@@ -665,7 +760,8 @@ def production_mutations(base: Mapping[str,float], references: Mapping[str,float
                     ("BSF31CC_BSFC2CC_swap","torso","pelvis")):
         mutated=dict(references);mutated[a],mutated[b]=mutated[b],mutated[a]
         mutated_psi=mutated["pelvis"]
-        evaluation,result=evaluate_branches(base,mutated,mutated_psi)
+        mutated_state=state.with_common_gauge(mutated_psi)
+        result=evaluate_branches(mutated_state,mutated).to_payload()["selection"]
         observed=max(abs(float(wrap_2pi(mutated[x]-references[x]))) for x in (a,b))
         detected=(result["selected_bit_vector"]!=selected_bits or observed>1e-3)
         add(mid,"evaluate_branches",{"swap":[a,b]},"identity swap changes numeric direction/selection",observed,detected)
@@ -711,36 +807,34 @@ def production_mutations(base: Mapping[str,float], references: Mapping[str,float
             "all_passed":passed==len(rows),"toy_only_count":0,"literal_result_count":0}
 
 
-def _candidate_payload(base: Mapping[str,float], selected: Mapping, psi_gp: float,
-                       extraction: Mapping, crosscheck: Mapping,
-                       source_solution_sha: str) -> dict:
+def _candidate_payload(branch_evaluation: BranchEvaluation,
+                       extraction: Mapping, crosscheck: Mapping) -> dict:
+    """Future exporter contract; callers cannot supply untyped H or old bits."""
+    if not isinstance(branch_evaluation, BranchEvaluation):
+        raise TypeError("typed BranchEvaluation required")
+    selected = selected_branch(branch_evaluation)
+    if selected is None:
+        raise HeadingGaugeValidationError("candidate export requires one typed branch")
+    state = branch_evaluation.heading_state.with_branch_bits(selected["bit_vector"])
     cross={row["segment"]:row["status"] for row in crosscheck["crosschecks"]}
     cross.update({row["segment"]:row["status"] for row in crosscheck["forearms"]})
     nodes=[]
     for row in selected["per_node_directed_distance"]:
-        nodes.append({"device":row["device"],"segment":row["segment"],"target_direction":row["target"],
-                      "heading_rad":row["selected_heading_rad"],"heading_deg":math.degrees(row["selected_heading_rad"]),
-                      "actual_reference_azimuth_rad":row["actual_reference_azimuth_rad"],
-                      "actual_reference_azimuth_deg":math.degrees(row["actual_reference_azimuth_rad"]),
-                      "branch_margin_rad":row["margin_rad"],"branch_margin_deg":row["margin_deg"],
-                      "independent_action_crosscheck_status":cross[row["segment"]]})
+        coordinate = row["segment"]
+        nodes.append({
+            "coordinate":coordinate,
+            "k_protocol_relative_rad":state.k_protocol_relative_rad(coordinate),
+            "psi_protocol_to_common_rad":state.psi_protocol_to_common_rad,
+            "h_common_rad_derived":state.h_common_rad(coordinate),
+            "h_common_derivation":"wrap_2pi(k_protocol_relative_rad + psi_protocol_to_common_rad)",
+        })
     payload={
-        "schema":"biospur.phase3r26.nine_heading_conditional_candidate.v1",
-        "session_id":SESSION_ID,"source_commit":ATTESTATION_BASE,"source_solution_sha":source_solution_sha,
-        "coordinate_order":list(COORDINATE_ORDER),"psi_GP_rad":psi_gp,"psi_GP_deg":math.degrees(psi_gp),
-        "selected_GF2_bit_vector":selected["bit_vector"],"nodes":nodes,
-        "wrap_convention":"wrap_2pi [-pi,pi)","R_EiI_convention":"active I-to-E_i",
-        "quaternion_order":"wxyz","active_passive_convention":"active",
-        "t_ref_interval_common_time_ns":extraction["common_overlap_ns"],
-        "all_input_SHAs":extraction["input_shas"],
-        "uncertainty":None,
-        "qualifiers":["OPERATOR_ATTESTED_SESSION_SPECIFIC_DONNING",
-                      "HISTORICALLY_EXPOSED_RETROSPECTIVE_DEVELOPMENT_ONLY",
-                      "CONDITIONAL_BRANCH_RESOLVED_CANDIDATE","NO_QUANTIFIED_DONNING_UNCERTAINTY",
-                      "NO_EXTERNAL_ACCURACY","NOT_CLINICAL","NOT_VICON_VALIDATED",
-                      "NOT_OPENSENSE_READY","NOT_PHASE4_READY"],
+        "schema":"biospur.phase3.heading_candidate.v2",
+        "semantic_cache_key":state.semantic_cache_key,
+        "heading_gauge_state_sha256":state.payload_sha256(),
+        "nodes":nodes,
     }
-    payload["candidate_payload_SHA256"]=payload_sha(payload)
+    validate_future_candidate_payload(payload,state)
     return payload
 
 
@@ -779,8 +873,11 @@ def run_science(repo: Path, output: Path | None=None) -> dict:
     graph=ledger.json(graph_path,"actual 47-factor production inventory","FROZEN_R23_FIT_AGGREGATE",numeric=True)
     matrices=ledger.npz(R23_EVIDENCE/"COMMON_HEADING_INFORMATION_MATRICES.npz",
                         "I2 matrix for real I3 reassembly","FROZEN_R23_FIT_AGGREGATE")
-    base,solution_sha=_base_solution(candidate)
-    repair=audit_repair(repo,ledger,report,candidate,graph,matrices)
+    base_state=_base_solution(
+        candidate,source_solution_sha256=AUTHORIZED_R23_SOURCE_SHA256
+    )
+    solution_sha=base_state.source_solution_sha256
+    repair=audit_repair(repo,ledger,report,base_state,graph,matrices)
     write_json(report/"AUDIT_REPAIR_REPORT.json",repair)
     (report/"AUDIT_REPAIR_REPORT.md").write_text(
         "# Phase 3-R2.6 audit repair\n\nThe five R2.4 defects are repaired in v2. "
@@ -795,27 +892,29 @@ def run_science(repo: Path, output: Path | None=None) -> dict:
         "devices":extraction["devices"],"gates":extraction["projection_gates"]})
     references=_reference_yaws(extraction)
     psi_gp=pelvis_protocol_gauge(np.array([references["pelvis"]]),0.0,sign=1)
+    state=base_state.with_common_gauge(psi_gp)
     frames=frame_tests(extraction,series);write_json(report/"FRAME_TEST_RESULTS.json",frames)
-    evaluation,selection=evaluate_branches(base,references,psi_gp)
+    branch_evaluation=evaluate_branches(state,references)
+    branch_payload=branch_evaluation.to_payload()
+    evaluation=branch_payload["evaluation"]
+    selection=branch_payload["selection"]
     write_json(report/"ACTUAL_512_BRANCH_EVALUATION.json",evaluation)
     write_json(report/"ACTUAL_BRANCH_SELECTION_RESULT.json",selection)
-    selected=next((x for x in evaluation["candidates"] if x["bit_vector"]==selection["selected_bit_vector"]),None)
-    margins={"schema":"biospur.phase3r26.directional_branch_margins.v1",
-             "selected":selected["per_node_directed_distance"] if selected else [],
-             "minimum":min(selected["per_node_directed_distance"],key=lambda x:x["margin_rad"]) if selected else None}
+    selected=selected_branch(branch_evaluation)
+    margins=build_directional_margin_report(branch_evaluation)
     write_json(report/"DIRECTIONAL_BRANCH_MARGINS.json",margins)
-    mutations=production_mutations(base,references,psi_gp,series,selected,graph) if selected else {
+    mutations=production_mutations(state,references,series,branch_evaluation,graph) if selected else {
         "schema":"biospur.phase3r26.production_mutation_results.v1","mutations":[],"executed_count":0,
         "passed_count":0,"failed_count":1,"all_passed":False,"toy_only_count":0,"literal_result_count":0}
     write_json(report/"PRODUCTION_MUTATION_TEST_RESULTS.json",mutations)
     frontend_manifest=ledger.json(FRONTEND/"FRONTEND_AND_SPLIT_MANIFEST.json",
                                   "first-motion device and action coding","AUTHORIZED_FROZEN_VQF_MANIFEST")
-    cross=first_motion_crosscheck(ledger,selected,psi_gp,frontend_manifest) if selected else {
+    cross=first_motion_crosscheck(ledger,branch_evaluation,frontend_manifest) if selected else {
         "schema":"biospur.phase3r26.first_motion_sign_crosscheck.v1","crosschecks":[],"forearms":[],
         "reliable_conflict_count":0,"all_seven_no_conflict":False}
     cross["all_seven_consistent"]=len(cross["crosschecks"])==7 and all(x["status"]=="CONSISTENT" for x in cross["crosschecks"])
     write_json(report/"FIRST_MOTION_SIGN_CROSSCHECK.json",cross)
-    support=support_and_bootstrap(ledger,selection["selected_bit_vector"],base,graph) if selected else {
+    support=support_and_bootstrap(ledger,branch_evaluation,graph) if selected else {
         "schema":"biospur.phase3r26.support_bootstrap_gate_audit.v1","bootstrap":{},
         "within_donning_block_support":{"families":[],"all_families_at_least_5_blocks":False},
         "immediate_new_capture_required":True}
@@ -826,7 +925,7 @@ def run_science(repo: Path, output: Path | None=None) -> dict:
     # indeterminate cross-check is reported but is not manufactured into a
     # conflict or a validation success.
     action_gate=bool(cross.get("all_seven_no_conflict",False))
-    conditional=_candidate_payload(base,selected,psi_gp,extraction,cross,solution_sha) if branch_gate and action_gate else None
+    conditional=_candidate_payload(branch_evaluation,extraction,cross) if branch_gate and action_gate else None
     write_json(report/"NINE_HEADING_CONDITIONAL_CANDIDATE.json",conditional)
     support_gate=bool(support.get("bootstrap",{}).get("all_joint_bootstrap_half_width_le_15deg",False) and
                       support["within_donning_block_support"]["all_families_at_least_5_blocks"])
@@ -858,16 +957,18 @@ def run_science(repo: Path, output: Path | None=None) -> dict:
         "phase4_ready":False,"sealed_consumer_count_zero":data_summary["sealed_consumer_count"]==0,
         "deterministic_replay":"PENDING_EXTERNAL_REPLAY_BINDING",
     }
-    final={"schema":"biospur.phase3r26.final_result.v1","run_id":RUN_ID,"verdict":verdict,
+    final={"schema":"biospur.phase3.heading_formal_result.v2","run_id":RUN_ID,"verdict":verdict,
            "source_commits":{"r24_implementation":IMPLEMENTATION_BASE,"r24_attestation":ATTESTATION_BASE},
-           "source_solution_sha256":solution_sha,"psi_GP_rad":psi_gp,"psi_GP_deg":math.degrees(psi_gp),
+           "heading_gauge_state":state.to_payload(),
+           "heading_gauge_state_sha256":state.payload_sha256(),
+           "semantic_cache_key":state.semantic_cache_key,
            "selected_GF2_bit_vector":selection["selected_bit_vector"],
            "selected_branch_count":selection["feasible_all_primary_count"],
-           "minimum_branch_margin":margins["minimum"],"candidate_payload_sha256":conditional["candidate_payload_SHA256"] if conditional else None,
+           "minimum_branch_margin":margins["minimum"],"candidate_payload_sha256":payload_sha(conditional) if conditional else None,
            "production_mutation_count":mutations["executed_count"],"production_mutation_passed":mutations["passed_count"],
            "machine_gates":gates,"support":support,"consumer_counts":data_summary,
            "implementation_commit":"PENDING","attestation_commit":"PENDING","remote_commit":"PENDING"}
-    validate_report_consistency(final,evaluation,selection,mutations,conditional)
+    validate_report_consistency(final,branch_evaluation,mutations,conditional)
     write_json(report/"FINAL_RESULT.json",final)
     deficient=[x for x in support["within_donning_block_support"]["families"] if x["deficit"]>0]
     (report/"PHASE3R26_FINAL_RESULT.md").write_text(

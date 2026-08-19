@@ -1,0 +1,139 @@
+{
+  "all_passed": true,
+  "executed_count": 23,
+  "failed_count": 0,
+  "passed_count": 23,
+  "schema": "biospur.phase3r26c.serialization_validator_results.v1",
+  "tests": [
+    {
+      "passed": true,
+      "test": "typed_round_trip"
+    },
+    {
+      "passed": true,
+      "test": "canonical_byte_determinism"
+    },
+    {
+      "passed": true,
+      "test": "field_reordering"
+    },
+    {
+      "expected_detector": "exact-field validator",
+      "observed_detector": "HeadingGaugeValidationError: heading state payload fields are not exact",
+      "passed": true,
+      "test": "missing_field"
+    },
+    {
+      "expected_detector": "coordinate-set validator",
+      "observed_detector": "HeadingGaugeValidationError: K coordinate set mismatch; missing=[], extra=['extra']",
+      "passed": true,
+      "test": "extra_coordinate"
+    },
+    {
+      "expected_detector": "fixed-order validator",
+      "observed_detector": "HeadingGaugeValidationError: coordinate_order does not exactly match the fixed order",
+      "passed": true,
+      "test": "duplicate_coordinate"
+    },
+    {
+      "expected_detector": "finite-radian validator",
+      "observed_detector": "HeadingGaugeValidationError: psi_protocol_to_common_rad must be finite",
+      "passed": true,
+      "test": "nan"
+    },
+    {
+      "expected_detector": "finite-radian validator",
+      "observed_detector": "HeadingGaugeValidationError: psi_protocol_to_common_rad must be finite",
+      "passed": true,
+      "test": "positive_inf"
+    },
+    {
+      "expected_detector": "finite-radian validator",
+      "observed_detector": "HeadingGaugeValidationError: psi_protocol_to_common_rad must be finite",
+      "passed": true,
+      "test": "negative_inf"
+    },
+    {
+      "expected_detector": "canonical-radian validator",
+      "observed_detector": "HeadingGaugeValidationError: psi_protocol_to_common_rad is not canonical radians in [-pi,pi); degrees are forbidden",
+      "passed": true,
+      "test": "degrees_as_radians"
+    },
+    {
+      "expected_detector": "semantic-version validator",
+      "observed_detector": "HeadingGaugeValidationError: unknown heading semantic_version",
+      "passed": true,
+      "test": "unknown_schema"
+    },
+    {
+      "expected_detector": "migration validator",
+      "observed_detector": "HeadingGaugeValidationError: unknown migration_id",
+      "passed": true,
+      "test": "unknown_migration"
+    },
+    {
+      "expected_detector": "authorized-source-SHA validator",
+      "observed_detector": "HeadingGaugeValidationError: source SHA mismatch",
+      "passed": true,
+      "test": "source_sha_mismatch"
+    },
+    {
+      "expected_detector": "legacy psi-zero validator",
+      "observed_detector": "HeadingGaugeValidationError: representative_psi_GP_rad missing",
+      "passed": true,
+      "test": "representative_missing"
+    },
+    {
+      "expected_detector": "legacy psi-zero validator",
+      "observed_detector": "HeadingGaugeValidationError: representative_psi_GP_rad must be explicitly zero",
+      "passed": true,
+      "test": "representative_nonzero"
+    },
+    {
+      "expected_detector": "legacy schema validator",
+      "observed_detector": "HeadingGaugeValidationError: unknown legacy source schema",
+      "passed": true,
+      "test": "legacy_unknown_schema"
+    },
+    {
+      "expected_detector": "legacy coordinate-order validator",
+      "observed_detector": "HeadingGaugeValidationError: legacy coordinate order mismatch",
+      "passed": true,
+      "test": "legacy_coordinate_order_mismatch"
+    },
+    {
+      "expected_detector": "typed legacy-field validator",
+      "observed_detector": "HeadingGaugeValidationError: legacy relative-heading coordinate set mismatch",
+      "passed": true,
+      "test": "legacy_only_untyped_heading"
+    },
+    {
+      "expected_detector": "continuous-orbit provenance validator",
+      "observed_detector": "HeadingGaugeValidationError: legacy continuous-orbit provenance missing",
+      "passed": true,
+      "test": "legacy_provenance_incomplete"
+    },
+    {
+      "passed": true,
+      "test": "authorized_legacy_migration"
+    },
+    {
+      "expected_detector": "derived-H algebra validator",
+      "observed_detector": "HeadingGaugeValidationError: inconsistent derived H",
+      "passed": true,
+      "test": "inconsistent_derived_h"
+    },
+    {
+      "expected_detector": "semantic-cache validator",
+      "observed_detector": "HeadingGaugeValidationError: stale or unknown semantic cache key",
+      "passed": true,
+      "test": "stale_cache_key"
+    },
+    {
+      "expected_detector": "fixed-order validator",
+      "observed_detector": "HeadingGaugeValidationError: coordinate_order does not exactly match the fixed order",
+      "passed": true,
+      "test": "multiple_coordinate_order"
+    }
+  ]
+}
