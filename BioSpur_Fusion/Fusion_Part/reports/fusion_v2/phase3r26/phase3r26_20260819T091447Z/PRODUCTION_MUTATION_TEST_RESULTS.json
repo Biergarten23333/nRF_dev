@@ -1,0 +1,241 @@
+{
+  "all_passed": true,
+  "executed_count": 24,
+  "failed_count": 0,
+  "literal_result_count": 0,
+  "mutations": [
+    {
+      "expected_change": "azimuth changes by pi",
+      "input_hash": "00b855414502b758be5d2440d2e0ea438a6ac88111a752e91605b0bd3285d215",
+      "mutation_id": "sensor_minus_Z_to_plus_Z",
+      "observed_numeric_change": 3.141592653589793,
+      "passed": true,
+      "production_path_exercised": "reference_axis"
+    },
+    {
+      "expected_change": "psi changes with wrong sign",
+      "input_hash": "25cd01ea2873b1fb364200be342e48ee127a6b51c4e64fe13ec10299b20ca6df",
+      "mutation_id": "pelvis_gauge_sign_inversion",
+      "observed_numeric_change": 3.0781395083174434,
+      "passed": true,
+      "production_path_exercised": "pelvis_protocol_gauge"
+    },
+    {
+      "expected_change": "real reference azimuth changes",
+      "input_hash": "48fff9b45fa8ee5a86fcd9a53f2509c4e08bb91611a0c92dccba02afdb93bcca",
+      "mutation_id": "R_EiI_transpose_inverse",
+      "observed_numeric_change": 3.1396167995961024,
+      "passed": true,
+      "production_path_exercised": "reference_axis"
+    },
+    {
+      "expected_change": "real reference azimuth changes",
+      "input_hash": "c8e822db11b0447b04a3dbdb3b5cb96afd43309447fad3840789baa35ba916de",
+      "mutation_id": "active_to_passive",
+      "observed_numeric_change": 3.1396167995961024,
+      "passed": true,
+      "production_path_exercised": "reference_axis"
+    },
+    {
+      "expected_change": "real reference azimuth changes",
+      "input_hash": "0fdd6b0770a3b372d2bb8a0ad32630a17a814c2fc3bc22f974a888c25560e8da",
+      "mutation_id": "wxyz_interpreted_xyzw",
+      "observed_numeric_change": 2.3362621054743107,
+      "passed": true,
+      "production_path_exercised": "reference_axis"
+    },
+    {
+      "expected_change": "directed distances change",
+      "input_hash": "6134fb4ae79e3fe59d526c87b112809925d194711c74a953e2fad61b57e4342a",
+      "mutation_id": "left_multiplication_to_right",
+      "observed_numeric_change": 1.9497040911501595,
+      "passed": true,
+      "production_path_exercised": "directed_world_axis"
+    },
+    {
+      "expected_change": "pi sign sensitivity is erased",
+      "input_hash": "ff59d4fbad72f2e29fbcfd1bf81f49836713c5aa1d12f0a334f607f2fb1c5a25",
+      "mutation_id": "wrap_2pi_to_wrap_mod_pi",
+      "observed_numeric_change": 3.141592653589793,
+      "passed": true,
+      "production_path_exercised": "directed_residual"
+    },
+    {
+      "expected_change": "identity swap changes numeric direction/selection",
+      "input_hash": "e4bb1f6f39728c3e6522c25bed819a4acc8416d35ed8ac318617290e9c535e12",
+      "mutation_id": "left_right_wrist_device_swap",
+      "observed_numeric_change": 0.7495373953190141,
+      "passed": true,
+      "production_path_exercised": "evaluate_branches"
+    },
+    {
+      "expected_change": "identity swap changes numeric direction/selection",
+      "input_hash": "fbe2b52635806c66a772fe4af271a8c95f0a8b8a76a4a75a6b213f299a5e093d",
+      "mutation_id": "left_right_ankle_device_swap",
+      "observed_numeric_change": 0.16599405679057044,
+      "passed": true,
+      "production_path_exercised": "evaluate_branches"
+    },
+    {
+      "expected_change": "identity swap changes numeric direction/selection",
+      "input_hash": "b5b69ce9daac4f494f71658e7d06b8d83db6d70eefec15f1b26ee394188d24de",
+      "mutation_id": "BSF31CC_BSFC2CC_swap",
+      "observed_numeric_change": 0.04478911661466167,
+      "passed": true,
+      "production_path_exercised": "evaluate_branches"
+    },
+    {
+      "expected_change": "zero rotation delta and no extra mode",
+      "input_hash": "a9ace166c99760d6966b55cc3d386deb369594d3e6132492e072ac8753d3b43b",
+      "mutation_id": "q_and_minus_q_two_modes",
+      "observed_numeric_change": 0.0,
+      "passed": true,
+      "production_path_exercised": "quat_to_matrix_wxyz"
+    },
+    {
+      "expected_change": "continuous gauge returns; augmented structural rank 9",
+      "input_hash": "3ab008e21e27f81594e011fc35b7a443c0d7ebe71c53d15dfb54bed9cac36351",
+      "mutation_id": "remove_directed_factor_pelvis",
+      "observed_numeric_change": {
+        "remaining_rank": 9,
+        "representations": "CONTINUOUS_S1"
+      },
+      "passed": true,
+      "production_path_exercised": "directed_structural_rows"
+    },
+    {
+      "expected_change": "one unresolved pi bit gives 2 representations",
+      "input_hash": "f3560c493e9d27cb96cf37c2a43059b77b983cd1d55e0c20f055bc255a56ca75",
+      "mutation_id": "remove_directed_factor_torso",
+      "observed_numeric_change": {
+        "remaining_rank": 9,
+        "representations": 2
+      },
+      "passed": true,
+      "production_path_exercised": "directed_structural_rows"
+    },
+    {
+      "expected_change": "one unresolved pi bit gives 2 representations",
+      "input_hash": "4d015a98df221d421d328209cd0c6d98e441c3137f01596ec13118e7f2160107",
+      "mutation_id": "remove_directed_factor_upper_arm_left",
+      "observed_numeric_change": {
+        "remaining_rank": 9,
+        "representations": 2
+      },
+      "passed": true,
+      "production_path_exercised": "directed_structural_rows"
+    },
+    {
+      "expected_change": "one unresolved pi bit gives 2 representations",
+      "input_hash": "159a351742abf49f415240ffb87c894a4cb31b894b47f7aa2811642a9b62b32a",
+      "mutation_id": "remove_directed_factor_forearm_left",
+      "observed_numeric_change": {
+        "remaining_rank": 9,
+        "representations": 2
+      },
+      "passed": true,
+      "production_path_exercised": "directed_structural_rows"
+    },
+    {
+      "expected_change": "one unresolved pi bit gives 2 representations",
+      "input_hash": "1326cdb6778b61d203dc49bfb7eeedc6e47ce9fef05d1ef8a4f5690aa2b78d02",
+      "mutation_id": "remove_directed_factor_upper_arm_right",
+      "observed_numeric_change": {
+        "remaining_rank": 9,
+        "representations": 2
+      },
+      "passed": true,
+      "production_path_exercised": "directed_structural_rows"
+    },
+    {
+      "expected_change": "one unresolved pi bit gives 2 representations",
+      "input_hash": "a2c6113a05f2fdca6242e69bcc0fa86acba93e342a9de8f95fec45d034950a8c",
+      "mutation_id": "remove_directed_factor_forearm_right",
+      "observed_numeric_change": {
+        "remaining_rank": 9,
+        "representations": 2
+      },
+      "passed": true,
+      "production_path_exercised": "directed_structural_rows"
+    },
+    {
+      "expected_change": "one unresolved pi bit gives 2 representations",
+      "input_hash": "0d5bd7a1c4d829c5c79ce64f3df70227052cb2bc55a0e6c4ee2380cda25a1485",
+      "mutation_id": "remove_directed_factor_thigh_left",
+      "observed_numeric_change": {
+        "remaining_rank": 9,
+        "representations": 2
+      },
+      "passed": true,
+      "production_path_exercised": "directed_structural_rows"
+    },
+    {
+      "expected_change": "one unresolved pi bit gives 2 representations",
+      "input_hash": "316bdd397d5e1b06951ea17931abc3e1953458c00982386eb546ddb6d4df8bfd",
+      "mutation_id": "remove_directed_factor_shank_left",
+      "observed_numeric_change": {
+        "remaining_rank": 9,
+        "representations": 2
+      },
+      "passed": true,
+      "production_path_exercised": "directed_structural_rows"
+    },
+    {
+      "expected_change": "one unresolved pi bit gives 2 representations",
+      "input_hash": "6e7577331eac4a845a85714ad62be536b53ee9a3c326298e6a5707ad692666c7",
+      "mutation_id": "remove_directed_factor_thigh_right",
+      "observed_numeric_change": {
+        "remaining_rank": 9,
+        "representations": 2
+      },
+      "passed": true,
+      "production_path_exercised": "directed_structural_rows"
+    },
+    {
+      "expected_change": "one unresolved pi bit gives 2 representations",
+      "input_hash": "ff6576306c6cccab62abdfa78b67dda45d7db5a037e850f7e21a0f61ef7047de",
+      "mutation_id": "remove_directed_factor_shank_right",
+      "observed_numeric_change": {
+        "remaining_rank": 9,
+        "representations": 2
+      },
+      "passed": true,
+      "production_path_exercised": "directed_structural_rows"
+    },
+    {
+      "expected_change": "continuous gauge returns",
+      "input_hash": "3ab008e21e27f81594e011fc35b7a443c0d7ebe71c53d15dfb54bed9cac36351",
+      "mutation_id": "remove_pelvis_anchor",
+      "observed_numeric_change": {
+        "remaining_rank": 9
+      },
+      "passed": true,
+      "production_path_exercised": "directed_structural_rows"
+    },
+    {
+      "expected_change": "row count changes but independent rank does not",
+      "input_hash": "1f361506a5a49d350021db024ae647c5fbec41bd377ada9868b76cfd3c7c61b4",
+      "mutation_id": "duplicate_factor_as_independent",
+      "observed_numeric_change": {
+        "rank": 10,
+        "row_count": 11
+      },
+      "passed": true,
+      "production_path_exercised": "directed_structural_rows"
+    },
+    {
+      "expected_change": "constraint rank zero; 512 vacuous invariances; validator accepts computed result",
+      "input_hash": "ea04fa4f5ed09dcf785e6830a8ad10df41de08d60d4f7e76deac76de9a9ab757",
+      "mutation_id": "replace_real_factor_graph_empty",
+      "observed_numeric_change": {
+        "constraint_rank": 0,
+        "invariant_count": 512
+      },
+      "passed": true,
+      "production_path_exercised": "graph_validator"
+    }
+  ],
+  "passed_count": 24,
+  "schema": "biospur.phase3r26.production_mutation_results.v1",
+  "toy_only_count": 0
+}

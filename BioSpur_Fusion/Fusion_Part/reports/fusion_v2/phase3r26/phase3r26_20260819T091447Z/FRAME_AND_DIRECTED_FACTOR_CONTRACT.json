@@ -1,0 +1,22 @@
+{
+  "I3_structural_constraint_rank_label": "STRUCTURAL_RANK_ONLY_NOT_INFORMATION_OR_ACCURACY",
+  "I3_weighted_information": "UNAVAILABLE_UNQUANTIFIED_DONNING_SIGMA",
+  "R_EiI": {
+    "action": "active",
+    "quaternion_order": "wxyz",
+    "source": "I",
+    "target": "E_i"
+  },
+  "actual_axis_used": "sensor_-Z",
+  "equations": {
+    "R_GI": "Rz(h_i) R_EiI",
+    "axis": "R_EiI(-e_z)",
+    "d_G": "Rz(psi_GP) d_P",
+    "pelvis": "h_pelvis=0; psi_GP=+yaw(axis_pelvis)-yaw(d_pelvis_P)",
+    "residual": "wrap_2pi(h_i+yaw(axis)-psi_GP-yaw(d_P))"
+  },
+  "pelvis_qualifier": "UNQUANTIFIED_PELVIS_DONNING_AND_FACING_OFFSET",
+  "pelvis_uncertainty": null,
+  "schema": "biospur.phase3r26.frame_directed_factor_contract.v2",
+  "wrap_convention": "[-pi,pi)"
+}
