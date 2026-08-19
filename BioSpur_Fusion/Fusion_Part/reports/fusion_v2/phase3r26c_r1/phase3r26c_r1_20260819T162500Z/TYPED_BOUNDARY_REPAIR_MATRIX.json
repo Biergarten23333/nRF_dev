@@ -1,0 +1,35 @@
+{
+  "rows": [
+    {
+      "boundary": "K_PROTOCOL_RELATIVE",
+      "implementation": "KProtocolRelativeByCoordinate",
+      "raw_mapping_public_boundary": false,
+      "test": "test_nominal_k_type_is_required_and_raw_mapping_fails_closed"
+    },
+    {
+      "boundary": "HeadingGaugeState",
+      "direct_bypass": false,
+      "implementation": "immutable typed K plus psi; H derived",
+      "test": "test_canonical_serialization_rejects_every_unvalidated_mapping"
+    },
+    {
+      "boundary": "BranchEvaluation",
+      "direct_bypass": false,
+      "implementation": "init=False; create/from_payload validate full envelope",
+      "test": "test_branch_envelope_direct_constructor_and_object_new_bypass_fail"
+    },
+    {
+      "boundary": "FormalHeadingResult",
+      "direct_bypass": false,
+      "implementation": "validated factory; recursive alias rejection",
+      "test": "test_formal_result_factory_rejects_untyped_heading_aliases"
+    },
+    {
+      "boundary": "canonical_result_payload",
+      "implementation": "TypedCanonicalPayload only",
+      "test": "test_unvalidated_mapping_cannot_cross_canonical_result_boundary",
+      "untyped_aliases_accepted": false
+    }
+  ],
+  "schema": "biospur.phase3r26c_r1.typed_boundary_repair_matrix.v1"
+}

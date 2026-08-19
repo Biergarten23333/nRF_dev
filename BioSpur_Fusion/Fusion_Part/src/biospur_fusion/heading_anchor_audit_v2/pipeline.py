@@ -24,6 +24,7 @@ from .core import (
 from .heading_gauge import (
     AUTHORIZED_R23_SOURCE_SHA256,
     BranchEvaluation,
+    FormalHeadingResult,
     HeadingGaugeState,
     HeadingGaugeValidationError,
     migrate_r23_psi_zero_candidate,
@@ -210,7 +211,7 @@ def audit_repair(repo: Path, ledger: AccessLedger, report: Path,
     rows = []
     invariant_bits = []
     for bits in itertools.product((0, 1), repeat=9):
-        shifted = {name:base[name]+math.pi*bits[i] for i,name in enumerate(COORDINATE_ORDER)}
+        shifted = state.with_branch_bits(bits).k_protocol_relative_rad_by_coordinate
         after = evaluate_reduced_graph(edges, shifted, 0.0)
         deltas = np.abs(after-before)
         invariant = bool(np.all(deltas <= tolerance))
@@ -400,53 +401,67 @@ def _reference_yaws(extraction: Mapping) -> dict[str,float]:
             for row in extraction["devices"].values()}
 
 
-def evaluate_branches(state: HeadingGaugeState,
-                      reference: Mapping[str,float]) -> BranchEvaluation:
-    """Evaluate all pi branches canonically in K; psi is never a score input."""
+def score_branch_candidate(
+    state: HeadingGaugeState,
+    reference: Mapping[str, float],
+    bits: Sequence[int],
+) -> dict:
+    """Score one synthetic/formal branch through the typed K boundary."""
     if not isinstance(state, HeadingGaugeState):
-        raise TypeError("evaluate_branches requires typed HeadingGaugeState")
+        raise TypeError("score_branch_candidate requires typed HeadingGaugeState")
     if set(reference) != set(COORDINATE_ORDER):
         raise HeadingGaugeValidationError("reference coordinate set mismatch")
     if not all(math.isfinite(float(reference[name])) for name in COORDINATE_ORDER):
         raise HeadingGaugeValidationError("reference azimuths must be finite")
-    candidates = []
+    bits = tuple(bits)
+    if len(bits) != len(COORDINATE_ORDER) or any(bit not in (0, 1) for bit in bits):
+        raise HeadingGaugeValidationError("branch bits must be nine ordered binary values")
     tolerance = 1e-12
-    for bits in itertools.product((0,1),repeat=9):
-        branch_state = state.with_branch_bits(bits)
-        per_node = []
-        score = 0.0; strict = True
-        for i,segment in enumerate(COORDINATE_ORDER):
-            k = branch_state.k_protocol_relative_rad(segment)
-            h = branch_state.h_common_rad(segment)
-            protocol_axis_yaw = float(wrap_2pi(k + float(reference[segment])))
-            target = TARGETS[segment]
-            if target["type"] == "point":
-                delta = directed_residual_k(k, float(reference[segment]), target["azimuth"])
-                primary,antipodal,margin = point_distances(delta)
-            else:
-                primary,antipodal,margin = sector_distances(
-                    protocol_axis_yaw,target["start"],target["stop"]
-                )
-                delta = None
-            strict &= margin > tolerance
-            score += primary
-            per_node.append({
-                "segment":segment,"device":target["device"],"target":target["label"],
-                "k_protocol_relative_rad":k,
-                "psi_protocol_to_common_rad":branch_state.psi_protocol_to_common_rad,
-                "h_common_rad_derived":h,
-                "h_common_derivation":"wrap_2pi(k_protocol_relative_rad + psi_protocol_to_common_rad)",
-                "actual_reference_azimuth_rad":reference[segment],
-                "candidate_axis_azimuth_in_P_rad":protocol_axis_yaw,"directed_delta_rad":delta,
-                "primary_distance_rad":primary,"primary_distance_deg":math.degrees(primary),
-                "antipodal_distance_rad":antipodal,"antipodal_distance_deg":math.degrees(antipodal),
-                "margin_rad":margin,"margin_deg":math.degrees(margin),
-                "preference":"PRIMARY" if margin>tolerance else "ANTIPODAL" if margin < -tolerance else "SIGN_INDETERMINATE",
-            })
-        candidates.append({"bit_vector":list(bits),"per_node_directed_distance":per_node,
-                           "heading_gauge_state_sha256":branch_state.payload_sha256(),
-                           "total_unweighted_semantic_score_rad":score,
-                           "feasible_or_indeterminate":"FEASIBLE_ALL_PRIMARY" if strict else "NOT_ALL_PRIMARY_OR_INDETERMINATE"})
+    branch_state = state.with_branch_bits(bits)
+    per_node = []
+    score = 0.0
+    strict = True
+    for segment in COORDINATE_ORDER:
+        k = branch_state.k_protocol_relative_rad(segment)
+        h = branch_state.h_common_rad(segment)
+        protocol_axis_yaw = float(wrap_2pi(k + float(reference[segment])))
+        target = TARGETS[segment]
+        if target["type"] == "point":
+            delta = directed_residual_k(k, float(reference[segment]), target["azimuth"])
+            primary, antipodal, margin = point_distances(delta)
+        else:
+            primary, antipodal, margin = sector_distances(
+                protocol_axis_yaw, target["start"], target["stop"]
+            )
+            delta = None
+        strict &= margin > tolerance
+        score += primary
+        per_node.append({
+            "segment":segment,"device":target["device"],"target":target["label"],
+            "k_protocol_relative_rad":k,
+            "psi_protocol_to_common_rad":branch_state.psi_protocol_to_common_rad,
+            "h_common_rad_derived":h,
+            "h_common_derivation":"wrap_2pi(k_protocol_relative_rad + psi_protocol_to_common_rad)",
+            "actual_reference_azimuth_rad":reference[segment],
+            "candidate_axis_azimuth_in_P_rad":protocol_axis_yaw,"directed_delta_rad":delta,
+            "primary_distance_rad":primary,"primary_distance_deg":math.degrees(primary),
+            "antipodal_distance_rad":antipodal,"antipodal_distance_deg":math.degrees(antipodal),
+            "margin_rad":margin,"margin_deg":math.degrees(margin),
+            "preference":"PRIMARY" if margin>tolerance else "ANTIPODAL" if margin < -tolerance else "SIGN_INDETERMINATE",
+        })
+    return {"bit_vector":list(bits),"per_node_directed_distance":per_node,
+            "heading_gauge_state_sha256":branch_state.payload_sha256(),
+            "total_unweighted_semantic_score_rad":score,
+            "feasible_or_indeterminate":"FEASIBLE_ALL_PRIMARY" if strict else "NOT_ALL_PRIMARY_OR_INDETERMINATE"}
+
+
+def evaluate_branches(state: HeadingGaugeState,
+                      reference: Mapping[str,float]) -> BranchEvaluation:
+    """Evaluate all pi branches canonically in K; psi is never a score input."""
+    candidates = [
+        score_branch_candidate(state, reference, bits)
+        for bits in itertools.product((0, 1), repeat=len(COORDINATE_ORDER))
+    ]
     feasible = [row for row in candidates if row["feasible_or_indeterminate"] == "FEASIBLE_ALL_PRIMARY"]
     selected = feasible[0] if len(feasible)==1 else None
     result = {
@@ -860,7 +875,7 @@ def _publication(verdict: str, candidate: Mapping | None) -> dict:
             "scope":"retrospective fit-side session-specific conditional development result"}
 
 
-def run_science(repo: Path, output: Path | None=None) -> dict:
+def run_science(repo: Path, output: Path | None=None) -> FormalHeadingResult:
     report=_report(repo,output);report.mkdir(parents=True,exist_ok=True)
     ledger=AccessLedger(); root=repo/"BioSpur_Fusion/Fusion_Part"
     write_json(report/"DONNING_EVIDENCE_LEDGER.json",_donning_payload())
@@ -969,7 +984,8 @@ def run_science(repo: Path, output: Path | None=None) -> dict:
            "machine_gates":gates,"support":support,"consumer_counts":data_summary,
            "implementation_commit":"PENDING","attestation_commit":"PENDING","remote_commit":"PENDING"}
     validate_report_consistency(final,branch_evaluation,mutations,conditional)
-    write_json(report/"FINAL_RESULT.json",final)
+    formal_result=FormalHeadingResult.create(state,final)
+    write_json(report/"FINAL_RESULT.json",formal_result.to_payload())
     deficient=[x for x in support["within_donning_block_support"]["families"] if x["deficit"]>0]
     (report/"PHASE3R26_FINAL_RESULT.md").write_text(
         f"# Phase 3-R2.6 final result\n\nVerdict: `{verdict}`.\n\n"
@@ -986,7 +1002,7 @@ def run_science(repo: Path, output: Path | None=None) -> dict:
     (report/"REPAIR_LEDGER.jsonl").write_text("".join(json.dumps(x,sort_keys=True)+"\n" for x in repair_rows))
     run_state={"schema":"biospur.phase3r26.run_state.v1","run_id":RUN_ID,"state":"SCIENCE_COMPLETE",
                "verdict":verdict,"numeric_fit_data_reads_started":True,"sealed_consumer_count":0,
-               "canonical_payload_sha256":payload_sha(canonical_result_payload(final))}
+               "canonical_payload_sha256":payload_sha(canonical_result_payload(formal_result))}
     write_json(report/"RUN_STATE.json",run_state)
     checkpoint={"schema":"biospur.phase3r26.checkpoint_manifest.v1","checkpoint":"SCIENCE_COMPLETE",
                 "base_commit":ATTESTATION_BASE,"source_solution_sha256":solution_sha,
@@ -996,12 +1012,13 @@ def run_science(repo: Path, output: Path | None=None) -> dict:
         "schema":"biospur.phase3r26.reproducibility.v1","parallel_worker_path":"NOT_APPLICABLE_NO_PARALLEL_PATH",
         "requested_worker_counts":{"1":"NOT_APPLICABLE_NO_PARALLEL_PATH","4":"NOT_APPLICABLE_NO_PARALLEL_PATH","6":"NOT_APPLICABLE_NO_PARALLEL_PATH"},
         "independent_full_replays":"PENDING_EXTERNAL_REPLAY_BINDING","canonical_payload_sha256":run_state["canonical_payload_sha256"]})
-    return final
+    return formal_result
 
 
 def main(argv: Sequence[str]|None=None) -> int:
     parser=argparse.ArgumentParser();parser.add_argument("--repo",type=Path,default=_repo())
     parser.add_argument("--output",type=Path);args=parser.parse_args(argv)
     result=run_science(args.repo.resolve(),args.output.resolve() if args.output else None)
-    print(json.dumps({"verdict":result["verdict"],"canonical_payload_sha256":payload_sha(canonical_result_payload(result))},sort_keys=True))
+    payload=result.to_payload()
+    print(json.dumps({"verdict":payload["verdict"],"canonical_payload_sha256":payload_sha(canonical_result_payload(result))},sort_keys=True))
     return 0

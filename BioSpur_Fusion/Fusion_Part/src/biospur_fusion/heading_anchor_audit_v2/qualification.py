@@ -17,6 +17,7 @@ from .heading_gauge import (
     FUTURE_CANDIDATE_SCHEMA,
     HEADING_GAUGE_CACHE_KEY,
     HEADING_GAUGE_SEMANTIC_VERSION,
+    KProtocolRelativeByCoordinate,
     R23_MIGRATION_ID,
     R23_SOURCE_SCHEMA,
     BranchEvaluation,
@@ -70,7 +71,10 @@ def synthetic_state(*, psi: float = 0.73) -> HeadingGaugeState:
     }
     return HeadingGaugeState(
         coordinate_order=core.COORDINATE_ORDER,
-        k_protocol_relative_rad_by_coordinate=values,
+        k_protocol_relative=KProtocolRelativeByCoordinate(
+            coordinate_order=core.COORDINATE_ORDER,
+            k_protocol_relative_rad_by_coordinate=values,
+        ),
         psi_protocol_to_common_rad=psi,
         source_solution_sha256=AUTHORIZED_R23_SOURCE_SHA256,
         source_schema=R23_SOURCE_SCHEMA,
@@ -333,7 +337,7 @@ def run_serialization_and_validation() -> dict:
     candidate=future_candidate_payload(state);candidate["nodes"][0]["h_common_rad_derived"]=oracle_wrap_2pi(candidate["nodes"][0]["h_common_rad_derived"]+0.2)
     rows.append(_expect_rejection("inconsistent_derived_h",lambda:validate_future_candidate_payload(candidate,state),"derived-H algebra validator"))
     rows.append(_expect_rejection("stale_cache_key",lambda:validate_semantic_cache({"semantic_cache_key":"legacy","heading_gauge_state_sha256":state.payload_sha256()},state),"semantic-cache validator"))
-    rows.append(_expect_rejection("multiple_coordinate_order",lambda:HeadingGaugeState(coordinate_order=tuple(reversed(state.coordinate_order)),k_protocol_relative_rad_by_coordinate=state.k_protocol_relative_rad_by_coordinate,psi_protocol_to_common_rad=state.psi_protocol_to_common_rad,source_solution_sha256=state.source_solution_sha256,source_schema=state.source_schema,migration_id=state.migration_id),"fixed-order validator"))
+    rows.append(_expect_rejection("multiple_coordinate_order",lambda:HeadingGaugeState(coordinate_order=tuple(reversed(state.coordinate_order)),k_protocol_relative=state.k_protocol_relative_rad_by_coordinate,psi_protocol_to_common_rad=state.psi_protocol_to_common_rad,source_solution_sha256=state.source_solution_sha256,source_schema=state.source_schema,migration_id=state.migration_id),"fixed-order validator"))
     if not all(row["passed"] for row in rows):
         raise AssertionError("serialization qualification failed")
     return {
@@ -343,7 +347,8 @@ def run_serialization_and_validation() -> dict:
     }
 
 
-def run_required_mutations() -> dict:
+def run_fault_injections_and_negative_controls() -> dict:
+    """Exercise value-level negative controls; these are not source mutants."""
     state = synthetic_state()
     reference = synthetic_reference()
     coordinate = state.coordinate_order[0]
@@ -439,7 +444,7 @@ def run_required_mutations() -> dict:
 
     swapped=list(state.coordinate_order);swapped[0],swapped[1]=swapped[1],swapped[0]
     detected=False;observed="ACCEPTED"
-    try:HeadingGaugeState(coordinate_order=swapped,k_protocol_relative_rad_by_coordinate=state.k_protocol_relative_rad_by_coordinate,psi_protocol_to_common_rad=psi,source_solution_sha256=state.source_solution_sha256,source_schema=state.source_schema,migration_id=state.migration_id)
+    try:HeadingGaugeState(coordinate_order=swapped,k_protocol_relative=state.k_protocol_relative_rad_by_coordinate,psi_protocol_to_common_rad=psi,source_solution_sha256=state.source_solution_sha256,source_schema=state.source_schema,migration_id=state.migration_id)
     except HeadingGaugeValidationError as exc:detected=True;observed=str(exc)
     record("coordinate order swap not detected","HeadingGaugeState",swapped[:2],"fixed-order validator",detected,observed)
 
@@ -447,6 +452,7 @@ def run_required_mutations() -> dict:
     if passed != len(rows):
         failed=[row["mutation"] for row in rows if not row["passed"]]
         raise AssertionError(f"required mutation was not detected: {failed}")
-    return {"schema":"biospur.phase3r26c.production_mutation_results.v1",
+    return {"schema":"biospur.phase3r26c.value_negative_controls.v2",
             "executed_count":len(rows),"passed_count":passed,"failed_count":len(rows)-passed,
-            "literal_true_count":0,"all_passed":True,"mutations":rows}
+            "classification":"FAULT_INJECTION_AND_NEGATIVE_CONTROL_NOT_SOURCE_MUTATION",
+            "literal_true_count":0,"all_passed":True,"negative_controls":rows}

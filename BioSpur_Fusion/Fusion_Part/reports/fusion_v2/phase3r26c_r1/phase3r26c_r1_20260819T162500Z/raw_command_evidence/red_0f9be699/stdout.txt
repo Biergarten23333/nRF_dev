@@ -1,0 +1,80 @@
+.FFFFF                                                                   [100%]
+=================================== FAILURES ===================================
+______________ test_nominal_k_type_exists_and_is_exposed_by_state ______________
+
+    def test_nominal_k_type_exists_and_is_exposed_by_state():
+        gauge, _core, qualification = _modules()
+>       types = importlib.import_module("biospur_fusion.heading_anchor_audit_v2.heading_types")
+
+BioSpur_Fusion/Fusion_Part/tests/fusion_v2/phase3r26c_r1/test_command_bound_regressions.py:76: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/usr/lib/python3.12/importlib/__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+<frozen importlib._bootstrap>:1387: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1360: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'biospur_fusion.heading_anchor_audit_v2.heading_types'
+import_ = <function _gcd_import at 0x740892ba40e0>
+
+>   ???
+E   ModuleNotFoundError: No module named 'biospur_fusion.heading_anchor_audit_v2.heading_types'
+
+<frozen importlib._bootstrap>:1324: ModuleNotFoundError
+____________ test_branch_evaluation_direct_constructor_is_forbidden ____________
+
+    def test_branch_evaluation_direct_constructor_is_forbidden():
+        gauge, _core, qualification = _modules()
+        state = qualification.synthetic_state()
+        with pytest.raises(TypeError, match="direct construction"):
+>           gauge.BranchEvaluation(state, {}, {})
+E           TypeError: BranchEvaluation.__init__() takes 3 positional arguments but 4 were given
+
+BioSpur_Fusion/Fusion_Part/tests/fusion_v2/phase3r26c_r1/test_command_bound_regressions.py:85: TypeError
+
+During handling of the above exception, another exception occurred:
+
+    def test_branch_evaluation_direct_constructor_is_forbidden():
+        gauge, _core, qualification = _modules()
+        state = qualification.synthetic_state()
+>       with pytest.raises(TypeError, match="direct construction"):
+E       AssertionError: Regex pattern did not match.
+E        Regex: 'direct construction'
+E        Input: 'BranchEvaluation.__init__() takes 3 positional arguments but 4 were given'
+
+BioSpur_Fusion/Fusion_Part/tests/fusion_v2/phase3r26c_r1/test_command_bound_regressions.py:84: AssertionError
+_______ test_unvalidated_mapping_cannot_cross_canonical_result_boundary ________
+
+    def test_unvalidated_mapping_cannot_cross_canonical_result_boundary():
+        _gauge, core, _qualification = _modules()
+>       with pytest.raises(TypeError, match="TypedCanonicalPayload"):
+E       Failed: DID NOT RAISE <class 'TypeError'>
+
+BioSpur_Fusion/Fusion_Part/tests/fusion_v2/phase3r26c_r1/test_command_bound_regressions.py:90: Failed
+______________ test_branch_evaluation_has_validating_deserializer ______________
+
+    def test_branch_evaluation_has_validating_deserializer():
+        gauge, _core, qualification = _modules()
+        state = qualification.synthetic_state()
+>       assert callable(gauge.BranchEvaluation.from_payload)
+E       AttributeError: type object 'BranchEvaluation' has no attribute 'from_payload'. Did you mean: 'to_payload'?
+
+BioSpur_Fusion/Fusion_Part/tests/fusion_v2/phase3r26c_r1/test_command_bound_regressions.py:97: AttributeError
+_________________ test_formal_result_requires_a_typed_factory __________________
+
+    def test_formal_result_requires_a_typed_factory():
+        gauge, _core, qualification = _modules()
+        state = qualification.synthetic_state()
+>       assert callable(gauge.FormalHeadingResult.create)
+E       AttributeError: module 'biospur_fusion.heading_anchor_audit_v2.heading_gauge' has no attribute 'FormalHeadingResult'
+
+BioSpur_Fusion/Fusion_Part/tests/fusion_v2/phase3r26c_r1/test_command_bound_regressions.py:105: AttributeError
+=========================== short test summary info ============================
+FAILED BioSpur_Fusion/Fusion_Part/tests/fusion_v2/phase3r26c_r1/test_command_bound_regressions.py::test_nominal_k_type_exists_and_is_exposed_by_state
+FAILED BioSpur_Fusion/Fusion_Part/tests/fusion_v2/phase3r26c_r1/test_command_bound_regressions.py::test_branch_evaluation_direct_constructor_is_forbidden
+FAILED BioSpur_Fusion/Fusion_Part/tests/fusion_v2/phase3r26c_r1/test_command_bound_regressions.py::test_unvalidated_mapping_cannot_cross_canonical_result_boundary
+FAILED BioSpur_Fusion/Fusion_Part/tests/fusion_v2/phase3r26c_r1/test_command_bound_regressions.py::test_branch_evaluation_has_validating_deserializer
+FAILED BioSpur_Fusion/Fusion_Part/tests/fusion_v2/phase3r26c_r1/test_command_bound_regressions.py::test_formal_result_requires_a_typed_factory
+5 failed, 1 passed in 0.46s

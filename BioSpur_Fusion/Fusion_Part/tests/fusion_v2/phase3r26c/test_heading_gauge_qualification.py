@@ -18,7 +18,7 @@ from biospur_fusion.heading_anchor_audit_v2.qualification import (
     oracle_wrap_2pi,
     migrate_synthetic_authorized,
     run_gauge_equivariance,
-    run_required_mutations,
+    run_fault_injections_and_negative_controls,
     run_serialization_and_validation,
     synthetic_legacy_candidate,
     synthetic_state,
@@ -79,12 +79,13 @@ def test_serialization_and_validator_matrix():
     assert result["passed_count"] == result["executed_count"]
 
 
-def test_all_required_mutations_are_executed_and_detected():
-    result = run_required_mutations()
+def test_value_negative_controls_are_not_misclassified_as_source_mutants():
+    result = run_fault_injections_and_negative_controls()
     assert result["executed_count"] == 14
     assert result["passed_count"] == 14
     assert result["literal_true_count"] == 0
-    assert all(row["actual_altered_value"] is not None for row in result["mutations"])
+    assert result["classification"] == "FAULT_INJECTION_AND_NEGATIVE_CONTROL_NOT_SOURCE_MUTATION"
+    assert all(row["actual_altered_value"] is not None for row in result["negative_controls"])
 
 
 def test_stale_derived_cache_is_rejected_even_with_current_key():

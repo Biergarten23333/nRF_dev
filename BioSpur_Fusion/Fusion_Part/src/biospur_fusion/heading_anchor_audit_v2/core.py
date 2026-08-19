@@ -9,6 +9,8 @@ from typing import Iterable, Mapping, Sequence
 
 import numpy as np
 
+from .heading_types import KProtocolRelativeByCoordinate, TypedCanonicalPayload
+
 
 COORDINATE_ORDER = (
     "torso", "upper_arm_left", "forearm_left", "upper_arm_right",
@@ -207,27 +209,34 @@ def factor_coordinate(edge: Mapping) -> list[str]:
 
 
 def production_reduced_factor_residual(edge: Mapping,
-                                       headings: Mapping[str, float],
-                                       psi_gp: float,
+                                       k_protocol_relative: KProtocolRelativeByCoordinate,
+                                       psi_protocol_to_common_rad: float,
                                        measurement: float = 0.0) -> float:
     """R2.3 production factor geometry, evaluated through its modulo-pi path."""
     endpoints = list(edge["endpoints"])
     kind = edge["factor_type"]
     if kind == "PROTOCOL_AXIS_LINE":
         segment = next(x for x in endpoints if x != "psi_GP")
-        raw = headings[segment] - psi_gp - measurement
+        raw = k_protocol_relative[segment] - psi_protocol_to_common_rad - measurement
     elif kind == "HINGE_RP2_RELATION":
         if len(endpoints) != 2:
             raise ValueError("hinge endpoint count")
-        raw = headings[endpoints[0]] - headings[endpoints[1]] - measurement
+        raw = k_protocol_relative[endpoints[0]] - k_protocol_relative[endpoints[1]] - measurement
     else:
         raise ValueError(f"unsupported production factor {kind}")
     return float(wrap_mod_pi(raw))
 
 
-def evaluate_reduced_graph(edges: Sequence[Mapping], headings: Mapping[str, float],
-                           psi_gp: float = 0.0) -> np.ndarray:
-    return np.asarray([production_reduced_factor_residual(edge, headings, psi_gp)
+def evaluate_reduced_graph(
+    edges: Sequence[Mapping],
+    k_protocol_relative: KProtocolRelativeByCoordinate,
+    psi_protocol_to_common_rad: float = 0.0,
+) -> np.ndarray:
+    if not isinstance(k_protocol_relative, KProtocolRelativeByCoordinate):
+        raise TypeError("evaluate_reduced_graph requires typed KProtocolRelativeByCoordinate")
+    return np.asarray([production_reduced_factor_residual(
+        edge, k_protocol_relative, psi_protocol_to_common_rad
+    )
                        for edge in edges], dtype=float)
 
 
@@ -248,24 +257,11 @@ def matrix_rank(matrix: np.ndarray, tolerance: float = 1e-12) -> int:
     return int(np.linalg.matrix_rank(np.asarray(matrix, dtype=float), tol=tolerance))
 
 
-def canonical_result_payload(result: Mapping) -> dict:
-    """Remove execution metadata and refuse semantically untyped angle fields."""
-    forbidden = {"heading", "headings", "heading_rad", "relative_heading_rad"}
-
-    def inspect(value: object, path: str = "payload") -> None:
-        if isinstance(value, Mapping):
-            bad = forbidden.intersection(value)
-            if bad:
-                raise ValueError(
-                    f"untyped heading serialization forbidden at {path}: {sorted(bad)}"
-                )
-            for key, child in value.items():
-                inspect(child, f"{path}.{key}")
-        elif isinstance(value, (list, tuple)):
-            for index, child in enumerate(value):
-                inspect(child, f"{path}[{index}]")
-
-    inspect(result)
+def canonical_result_payload(result: TypedCanonicalPayload) -> dict:
+    """Canonicalize only objects that passed a current typed semantic boundary."""
+    if not isinstance(result, TypedCanonicalPayload):
+        raise TypeError("canonical_result_payload requires a TypedCanonicalPayload")
+    payload = result.to_payload()
     excluded = {"execution", "start_utc", "end_utc", "wall_seconds",
                 "invocation", "stdout_log", "stderr_log"}
-    return {k: v for k, v in result.items() if k not in excluded}
+    return {k: v for k, v in payload.items() if k not in excluded}

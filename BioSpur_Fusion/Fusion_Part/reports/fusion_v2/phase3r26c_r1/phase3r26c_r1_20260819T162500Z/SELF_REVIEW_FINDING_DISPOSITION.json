@@ -1,0 +1,180 @@
+{
+  "finding_count": 11,
+  "rows": [
+    {
+      "evidence_defect": false,
+      "files_symbols_affected": "see TYPED_BOUNDARY_REPAIR_MATRIX and CURRENT_CONSUMER_RECONCILIATION",
+      "finding_id": "R26CS-P1-01",
+      "governance_defect": false,
+      "implementation_defect": true,
+      "original_severity": "P1",
+      "planned_repair": "implemented by R2.6C-R1 corrective diff or accurately reclassified",
+      "planned_verification": "raw commands, source inventory, access tripwire, and two deterministic replays",
+      "source_evidence": [
+        "core.canonical_result_payload only forbids heading/headings/heading_rad/relative_heading_rad",
+        "synthetic probe accepted selected_heading_rad, base_heading, zero_bit_heading, and psi_GP",
+        "BranchEvaluation(state, _payload_bytes=b\"{}\\n\") constructs successfully without create() validation"
+      ],
+      "status": "FIXED_AND_EXECUTED"
+    },
+    {
+      "evidence_defect": false,
+      "files_symbols_affected": "see TYPED_BOUNDARY_REPAIR_MATRIX and CURRENT_CONSUMER_RECONCILIATION",
+      "finding_id": "R26CS-P1-02",
+      "governance_defect": false,
+      "implementation_defect": true,
+      "original_severity": "P1",
+      "planned_repair": "implemented by R2.6C-R1 corrective diff or accurately reclassified",
+      "planned_verification": "raw commands, source inventory, access tripwire, and two deterministic replays",
+      "source_evidence": [
+        "validate_future_candidate_payload has no exact top-level field-set check, so legacy branch/scores/margins can be carried as extra keys",
+        "validate_semantic_cache is referenced only by qualification/tests; no formal production cache loader calls it"
+      ],
+      "status": "RECLASSIFIED_WITH_EVIDENCE"
+    },
+    {
+      "evidence_defect": true,
+      "files_symbols_affected": "see TYPED_BOUNDARY_REPAIR_MATRIX and CURRENT_CONSUMER_RECONCILIATION",
+      "finding_id": "R26CS-P1-03",
+      "governance_defect": false,
+      "implementation_defect": false,
+      "original_severity": "P1",
+      "planned_repair": "implemented by R2.6C-R1 corrective diff or accurately reclassified",
+      "planned_verification": "raw commands, source inventory, access tripwire, and two deterministic replays",
+      "source_evidence": [
+        "0/14 mutate production source or callable behavior",
+        "8/14 are malformed-input/validator fault injections",
+        "6/14 compute a wrong value in test-local oracle code; the production function is not mutated",
+        "No per-mutant regression failure or deletion-restores-normal check is executed"
+      ],
+      "status": "FIXED_AND_EXECUTED"
+    },
+    {
+      "evidence_defect": true,
+      "files_symbols_affected": "see TYPED_BOUNDARY_REPAIR_MATRIX and CURRENT_CONSUMER_RECONCILIATION",
+      "finding_id": "R26CS-P1-04",
+      "governance_defect": false,
+      "implementation_defect": false,
+      "original_severity": "P1",
+      "planned_repair": "implemented by R2.6C-R1 corrective diff or accurately reclassified",
+      "planned_verification": "raw commands, source inventory, access tripwire, and two deterministic replays",
+      "source_evidence": [
+        "consumer_matrix() assigns all 27 dispositions by fixed ID sets and generic prose",
+        "C02/C04/C06 legacy producer/validator symbols remain unchanged and are not intrinsically fail-closed",
+        "C20 is not repaired by real production mutants",
+        "new typed consumers and bypass boundaries are not inventoried"
+      ],
+      "status": "FIXED_AND_EXECUTED"
+    },
+    {
+      "evidence_defect": true,
+      "files_symbols_affected": "see TYPED_BOUNDARY_REPAIR_MATRIX and CURRENT_CONSUMER_RECONCILIATION",
+      "finding_id": "R26CS-P1-05",
+      "governance_defect": true,
+      "implementation_defect": false,
+      "original_severity": "P1",
+      "planned_repair": "implemented by R2.6C-R1 corrective diff or accurately reclassified",
+      "planned_verification": "raw commands, source inventory, access tripwire, and two deterministic replays",
+      "source_evidence": [
+        "the generator hardcodes real_session_numeric_read_count=0",
+        "the claimed complete suite includes tests/integration/test_current_capture_result.py, which opens real capture-derived numeric JSON",
+        "this self-check exposed hard-coded real-session-derived assertion literals while auditing that test source; it did not open the underlying JSON"
+      ],
+      "status": "HISTORICAL_CLAIM_CORRECTED_BY_SIDECAR"
+    },
+    {
+      "evidence_defect": true,
+      "files_symbols_affected": "see TYPED_BOUNDARY_REPAIR_MATRIX and CURRENT_CONSUMER_RECONCILIATION",
+      "finding_id": "R26CS-P1-06",
+      "governance_defect": false,
+      "implementation_defect": false,
+      "original_severity": "P1",
+      "planned_repair": "implemented by R2.6C-R1 corrective diff or accurately reclassified",
+      "planned_verification": "raw commands, source inventory, access tripwire, and two deterministic replays",
+      "source_evidence": [
+        "run_synthetic_qualification.py hardcodes red evidence, test counts, consumer dispositions, data-access ledger, historical SHA values, and integrity values",
+        "RED_BASELINE_OUTPUT.txt is written as a literal string, not captured pytest stdout"
+      ],
+      "status": "FIXED_AND_EXECUTED"
+    },
+    {
+      "evidence_defect": true,
+      "files_symbols_affected": "see TYPED_BOUNDARY_REPAIR_MATRIX and CURRENT_CONSUMER_RECONCILIATION",
+      "finding_id": "R26CS-P2-01",
+      "governance_defect": false,
+      "implementation_defect": false,
+      "original_severity": "P2",
+      "planned_repair": "implemented by R2.6C-R1 corrective diff or accurately reclassified",
+      "planned_verification": "raw commands, source inventory, access tripwire, and two deterministic replays",
+      "source_evidence": [
+        "one compatibility harness branches on old/new APIs",
+        "new path temporarily overwrites AUTHORIZED_R23_SOURCE_SHA256; old path does not",
+        "oracle_wrap is independent, but API adaptation and provenance configuration differ"
+      ],
+      "status": "FIXED_AND_EXECUTED"
+    },
+    {
+      "evidence_defect": true,
+      "files_symbols_affected": "see TYPED_BOUNDARY_REPAIR_MATRIX and CURRENT_CONSUMER_RECONCILIATION",
+      "finding_id": "R26CS-P2-02",
+      "governance_defect": false,
+      "implementation_defect": false,
+      "original_severity": "P2",
+      "planned_repair": "implemented by R2.6C-R1 corrective diff or accurately reclassified",
+      "planned_verification": "raw commands, source inventory, access tripwire, and two deterministic replays",
+      "source_evidence": [
+        "count is hardcoded in FINAL_RESULT generator",
+        "two straightforward cache-disabled reruns excluding the real-data integration test stopped at seven collection errors",
+        "affected R2.6/R2.6C suite independently passed 29/29"
+      ],
+      "status": "HISTORICAL_CLAIM_CORRECTED_BY_SIDECAR"
+    },
+    {
+      "evidence_defect": false,
+      "files_symbols_affected": "see TYPED_BOUNDARY_REPAIR_MATRIX and CURRENT_CONSUMER_RECONCILIATION",
+      "finding_id": "R26CS-P2-03",
+      "governance_defect": true,
+      "implementation_defect": false,
+      "original_severity": "P2",
+      "planned_repair": "implemented by R2.6C-R1 corrective diff or accurately reclassified",
+      "planned_verification": "raw commands, source inventory, access tripwire, and two deterministic replays",
+      "source_evidence": [
+        "246 .pyc files in 55 __pycache__ directories",
+        "newest timestamps predate this self-check and correspond to the implementation/test period",
+        "porcelain remains clean because caches are ignored"
+      ],
+      "status": "FIXED_AND_EXECUTED"
+    },
+    {
+      "evidence_defect": false,
+      "files_symbols_affected": "see TYPED_BOUNDARY_REPAIR_MATRIX and CURRENT_CONSUMER_RECONCILIATION",
+      "finding_id": "R26CS-P2-04",
+      "governance_defect": false,
+      "implementation_defect": true,
+      "original_severity": "P2",
+      "planned_repair": "implemented by R2.6C-R1 corrective diff or accurately reclassified",
+      "planned_verification": "raw commands, source inventory, access tripwire, and two deterministic replays",
+      "source_evidence": [
+        "test_actual_pipeline.py was reduced from formal result/gate assertions to three quarantine/static-source checks",
+        "test_r26c_suite_does_not_reference_real_session_inputs checks only its own source file"
+      ],
+      "status": "FIXED_AND_EXECUTED"
+    },
+    {
+      "evidence_defect": false,
+      "files_symbols_affected": "see TYPED_BOUNDARY_REPAIR_MATRIX and CURRENT_CONSUMER_RECONCILIATION",
+      "finding_id": "R26CS-P3-01",
+      "governance_defect": true,
+      "implementation_defect": false,
+      "original_severity": "P3",
+      "planned_repair": "implemented by R2.6C-R1 corrective diff or accurately reclassified",
+      "planned_verification": "raw commands, source inventory, access tripwire, and two deterministic replays",
+      "source_evidence": [
+        "migrate_synthetic_authorized monkeypatches AUTHORIZED_R23_SOURCE_SHA256",
+        "no real R2.3 numeric was opened in qualification"
+      ],
+      "status": "RECLASSIFIED_WITH_EVIDENCE"
+    }
+  ],
+  "schema": "biospur.phase3r26c_r1.finding_disposition.v1"
+}

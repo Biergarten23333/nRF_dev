@@ -1,0 +1,89 @@
+{
+  "rows": [
+    {
+      "mutant_id": "M01_H_MISSING_PSI",
+      "source_diff": "--- baseline/heading_gauge.py\n+++ mutant/M01_H_MISSING_PSI/heading_gauge.py\n@@ -171,7 +171,6 @@\n     def h_common_rad(self, coordinate: str) -> float:\n         return _wrap_2pi_scalar(\n             self.k_protocol_relative_rad(coordinate)\n-            + self.psi_protocol_to_common_rad\n         )\n \n     @property\n",
+      "source_sha_after": "2c515feb284f2e8a0f9af74642f69e7b8fca8b855067dea484a020e6c4b5d729",
+      "source_sha_before": "f4947c8fe43b2c1357d5377e21dd09b10a19b9384d587eed9b83ecf1c635e0be"
+    },
+    {
+      "mutant_id": "M02_H_DOUBLE_PSI",
+      "source_diff": "--- baseline/heading_gauge.py\n+++ mutant/M02_H_DOUBLE_PSI/heading_gauge.py\n@@ -171,7 +171,7 @@\n     def h_common_rad(self, coordinate: str) -> float:\n         return _wrap_2pi_scalar(\n             self.k_protocol_relative_rad(coordinate)\n-            + self.psi_protocol_to_common_rad\n+            + 2.0 * self.psi_protocol_to_common_rad\n         )\n \n     @property\n",
+      "source_sha_after": "01389e71eba73612c03223f1f424dae333e543d60afb0deee3a3273e6885c12a",
+      "source_sha_before": "f4947c8fe43b2c1357d5377e21dd09b10a19b9384d587eed9b83ecf1c635e0be"
+    },
+    {
+      "mutant_id": "M03_K_RESIDUAL_EXTRA_MINUS_PSI",
+      "source_diff": "--- baseline/pipeline.py\n+++ mutant/M03_K_RESIDUAL_EXTRA_MINUS_PSI/pipeline.py\n@@ -427,7 +427,7 @@\n         protocol_axis_yaw = float(wrap_2pi(k + float(reference[segment])))\n         target = TARGETS[segment]\n         if target[\"type\"] == \"point\":\n-            delta = directed_residual_k(k, float(reference[segment]), target[\"azimuth\"])\n+            delta = directed_residual(k, float(reference[segment]), branch_state.psi_protocol_to_common_rad, target[\"azimuth\"])\n             primary, antipodal, margin = point_distances(delta)\n         else:\n             primary, antipodal, margin = sector_distances(\n",
+      "source_sha_after": "807ec466f316679c52620a8c7936f0d406d8052060fdfdb8e28f35f2d1a4a761",
+      "source_sha_before": "265018ab9ea82465de93d1ba1ce360581a7ef1bcd72ea22ea49e8f0945202335"
+    },
+    {
+      "mutant_id": "M04_H_RESIDUAL_MISSING_MINUS_PSI",
+      "source_diff": "--- baseline/core.py\n+++ mutant/M04_H_RESIDUAL_MISSING_MINUS_PSI/core.py\n@@ -117,7 +117,7 @@\n def directed_residual(h_i: float, axis_yaw: float, psi_gp: float,\n                       target_yaw_p: float, *, wrap: str = \"2pi\") -> float:\n     \"\"\"Explicit legacy H/psi wrapper; canonical K consumers use the K form.\"\"\"\n-    raw = h_i + axis_yaw - psi_gp - target_yaw_p\n+    raw = h_i + axis_yaw - target_yaw_p\n     if wrap == \"2pi\":\n         return float(wrap_2pi(raw))\n     if wrap == \"mod_pi\":\n",
+      "source_sha_after": "85c84e05facac35a69918827eca81d11b31ebe9fd2adae029d8a9516924b1af1",
+      "source_sha_before": "b6d6a4c6f52104879d07ad418b23302e37330da24c34c32c3384f788db474553"
+    },
+    {
+      "mutant_id": "M05_K_TREATED_AS_H",
+      "source_diff": "--- baseline/pipeline.py\n+++ mutant/M05_K_TREATED_AS_H/pipeline.py\n@@ -424,7 +424,7 @@\n     for segment in COORDINATE_ORDER:\n         k = branch_state.k_protocol_relative_rad(segment)\n         h = branch_state.h_common_rad(segment)\n-        protocol_axis_yaw = float(wrap_2pi(k + float(reference[segment])))\n+        protocol_axis_yaw = float(wrap_2pi(h + float(reference[segment])))\n         target = TARGETS[segment]\n         if target[\"type\"] == \"point\":\n             delta = directed_residual_k(k, float(reference[segment]), target[\"azimuth\"])\n",
+      "source_sha_after": "b576c0a2fad019c735bfccdd39ab27485826149eb858507ee7485fc946deef20",
+      "source_sha_before": "265018ab9ea82465de93d1ba1ce360581a7ef1bcd72ea22ea49e8f0945202335"
+    },
+    {
+      "mutant_id": "M06_H_TREATED_AS_K",
+      "source_diff": "--- baseline/heading_gauge.py\n+++ mutant/M06_H_TREATED_AS_K/heading_gauge.py\n@@ -186,7 +186,7 @@\n \n     def R_GI(self, R_EiI: np.ndarray, coordinate: str) -> np.ndarray:\n         matrix = _validated_rotation_input(R_EiI)\n-        return _rz(self.h_common_rad(coordinate)) @ matrix\n+        return _rz(self.k_protocol_relative_rad(coordinate)) @ matrix\n \n     def with_common_gauge(self, psi_protocol_to_common_rad: float) -> HeadingGaugeState:\n         \"\"\"Return the same invariant K state at an explicitly supplied gauge psi.\"\"\"\n",
+      "source_sha_after": "7a5e21c50e33f3742583f7db6f8c31af5b8a31218684ce5ede1be63d985cdf90",
+      "source_sha_before": "f4947c8fe43b2c1357d5377e21dd09b10a19b9384d587eed9b83ecf1c635e0be"
+    },
+    {
+      "mutant_id": "M07_SERIALIZER_DROPS_PSI",
+      "source_diff": "--- baseline/heading_gauge.py\n+++ mutant/M07_SERIALIZER_DROPS_PSI/heading_gauge.py\n@@ -234,7 +234,6 @@\n             \"semantic_version\": self.semantic_version,\n             \"coordinate_order\": list(self.coordinate_order),\n             \"k_protocol_relative_rad_by_coordinate\": self._k_protocol_relative.to_payload(),\n-            \"psi_protocol_to_common_rad\": self.psi_protocol_to_common_rad,\n             \"wrap_convention\": self.wrap_convention,\n             \"source_solution_sha256\": self.source_solution_sha256,\n             \"source_schema\": self.source_schema,\n",
+      "source_sha_after": "ab8bd435e78d873cea939a18d23212b27e8e34982e170007d0650e2c811adb27",
+      "source_sha_before": "f4947c8fe43b2c1357d5377e21dd09b10a19b9384d587eed9b83ecf1c635e0be"
+    },
+    {
+      "mutant_id": "M08_SERIALIZER_DROPS_VERSION",
+      "source_diff": "--- baseline/heading_gauge.py\n+++ mutant/M08_SERIALIZER_DROPS_VERSION/heading_gauge.py\n@@ -231,7 +231,6 @@\n \n     def to_payload(self) -> dict:\n         return {\n-            \"semantic_version\": self.semantic_version,\n             \"coordinate_order\": list(self.coordinate_order),\n             \"k_protocol_relative_rad_by_coordinate\": self._k_protocol_relative.to_payload(),\n             \"psi_protocol_to_common_rad\": self.psi_protocol_to_common_rad,\n",
+      "source_sha_after": "bf16398de44ca95ac3d073ce2ebaba8c3abab4a4796c981f3d10b6f96299eb71",
+      "source_sha_before": "f4947c8fe43b2c1357d5377e21dd09b10a19b9384d587eed9b83ecf1c635e0be"
+    },
+    {
+      "mutant_id": "M09_WRAP_2PI_TO_MOD_PI",
+      "source_diff": "--- baseline/core.py\n+++ mutant/M09_WRAP_2PI_TO_MOD_PI/core.py\n@@ -131,7 +131,7 @@\n     values = (k_protocol_relative_rad, axis_yaw, target_yaw_p)\n     if not all(math.isfinite(float(value)) for value in values):\n         raise ValueError(\"directed residual inputs must be finite radians\")\n-    return float(wrap_2pi(\n+    return float(wrap_mod_pi(\n         float(k_protocol_relative_rad) + float(axis_yaw) - float(target_yaw_p)\n     ))\n \n",
+      "source_sha_after": "19780ccad5dbb9395c8cdc62c65b2ea925501d53133ab00839d3228e4d630107",
+      "source_sha_before": "b6d6a4c6f52104879d07ad418b23302e37330da24c34c32c3384f788db474553"
+    },
+    {
+      "mutant_id": "M10_BRANCH_DEPENDS_ON_GAUGE",
+      "source_diff": "--- baseline/pipeline.py\n+++ mutant/M10_BRANCH_DEPENDS_ON_GAUGE/pipeline.py\n@@ -422,7 +422,7 @@\n     score = 0.0\n     strict = True\n     for segment in COORDINATE_ORDER:\n-        k = branch_state.k_protocol_relative_rad(segment)\n+        k = float(wrap_2pi(branch_state.k_protocol_relative_rad(segment) - branch_state.psi_protocol_to_common_rad))\n         h = branch_state.h_common_rad(segment)\n         protocol_axis_yaw = float(wrap_2pi(k + float(reference[segment])))\n         target = TARGETS[segment]\n",
+      "source_sha_after": "f746d73f41418c4cb031ad5a44b29cb6bd2b4e1c435063126aa3bdb2d1981c7c",
+      "source_sha_before": "265018ab9ea82465de93d1ba1ce360581a7ef1bcd72ea22ea49e8f0945202335"
+    },
+    {
+      "mutant_id": "M11_STALE_CACHE_ACCEPTED",
+      "source_diff": "--- baseline/heading_gauge.py\n+++ mutant/M11_STALE_CACHE_ACCEPTED/heading_gauge.py\n@@ -689,7 +689,7 @@\n         raise HeadingGaugeValidationError(\"cache provenance fields missing\")\n     if cache.get(\"schema\") != \"biospur.phase3.heading_gauge_independent_cache.v1\":\n         raise HeadingGaugeValidationError(\"unknown cache schema\")\n-    if cache.get(\"semantic_cache_key\") != HEADING_GAUGE_CACHE_KEY:\n+    if False and cache.get(\"semantic_cache_key\") != HEADING_GAUGE_CACHE_KEY:\n         raise HeadingGaugeValidationError(\"stale or unknown semantic cache key\")\n     if cache.get(\"heading_gauge_state_sha256\") != state.payload_sha256():\n         raise HeadingGaugeValidationError(\"cache heading-state SHA mismatch\")\n",
+      "source_sha_after": "a6af74e7c6ccd551284294853debf5ea3c49fd53e61c2086e440ba52a36755ee",
+      "source_sha_before": "f4947c8fe43b2c1357d5377e21dd09b10a19b9384d587eed9b83ecf1c635e0be"
+    },
+    {
+      "mutant_id": "M12_LEGACY_CANDIDATE_ACCEPTED",
+      "source_diff": "--- baseline/heading_gauge.py\n+++ mutant/M12_LEGACY_CANDIDATE_ACCEPTED/heading_gauge.py\n@@ -708,7 +708,7 @@\n ) -> None:\n     if not isinstance(payload, Mapping):\n         raise HeadingGaugeValidationError(\"candidate payload must be a mapping\")\n-    if payload.get(\"schema\") != FUTURE_CANDIDATE_SCHEMA:\n+    if False and payload.get(\"schema\") != FUTURE_CANDIDATE_SCHEMA:\n         raise HeadingGaugeValidationError(\"legacy or unknown candidate schema refused\")\n     if set(payload) != {\n         \"schema\", \"semantic_cache_key\", \"heading_gauge_state_sha256\", \"nodes\"\n",
+      "source_sha_after": "5b07060bf8b1466eedd7ce12781edfaa6ce59f90b8eaa9779c9be7364b13f8c1",
+      "source_sha_before": "f4947c8fe43b2c1357d5377e21dd09b10a19b9384d587eed9b83ecf1c635e0be"
+    },
+    {
+      "mutant_id": "M13_INCONSISTENT_H_ACCEPTED",
+      "source_diff": "--- baseline/heading_gauge.py\n+++ mutant/M13_INCONSISTENT_H_ACCEPTED/heading_gauge.py\n@@ -745,5 +745,5 @@\n             raise HeadingGaugeValidationError(\"candidate K mismatch\")\n         if abs(_wrap_2pi_scalar(float(row[\"psi_protocol_to_common_rad\"]) - expected_psi)) > 1e-12:\n             raise HeadingGaugeValidationError(\"candidate psi mismatch\")\n-        if abs(_wrap_2pi_scalar(float(row[\"h_common_rad_derived\"]) - expected_h)) > 1e-12:\n+        if False and abs(_wrap_2pi_scalar(float(row[\"h_common_rad_derived\"]) - expected_h)) > 1e-12:\n             raise HeadingGaugeValidationError(\"inconsistent derived H\")\n",
+      "source_sha_after": "10c0997c1caa70b9c7a825a1f8a62c0be4d20382f4b9f2e879649d0c5e4e5fa1",
+      "source_sha_before": "f4947c8fe43b2c1357d5377e21dd09b10a19b9384d587eed9b83ecf1c635e0be"
+    },
+    {
+      "mutant_id": "M14_COORDINATE_SWAP_ACCEPTED",
+      "source_diff": "--- baseline/heading_gauge.py\n+++ mutant/M14_COORDINATE_SWAP_ACCEPTED/heading_gauge.py\n@@ -126,7 +126,7 @@\n             raise HeadingGaugeValidationError(\"stale or unknown semantic cache key\")\n         if wrap_convention != WRAP_CONVENTION:\n             raise HeadingGaugeValidationError(\"wrap convention must be [-pi,pi)\")\n-        if order != tuple(COORDINATE_ORDER):\n+        if False and order != tuple(COORDINATE_ORDER):\n             raise HeadingGaugeValidationError(\"coordinate_order does not exactly match the fixed order\")\n         if len(set(order)) != len(order):\n             raise HeadingGaugeValidationError(\"duplicate coordinate\")\n",
+      "source_sha_after": "afaa452ccf632ed480bd0feb5aa9295676c56e2eddf98650c7506b4b549c50a3",
+      "source_sha_before": "f4947c8fe43b2c1357d5377e21dd09b10a19b9384d587eed9b83ecf1c635e0be"
+    }
+  ],
+  "schema": "biospur.phase3r26c_r1.production_source_mutation_diffs.v1"
+}

@@ -1,0 +1,122 @@
+{
+  "adapter_changes_expected_math": false,
+  "adapter_changes_fixture": false,
+  "adapter_disclosure": "DECLARED_MINIMAL_API_ADAPTER_DIFFERENCE",
+  "adapter_rewrites_authorized_sha": false,
+  "adapters": [
+    "OLD_COMMIT_ADAPTER",
+    "NEW_COMMIT_ADAPTER"
+  ],
+  "base": {
+    "command_argv": [
+      "python3",
+      "-m",
+      "pytest",
+      "-q",
+      "--import-mode=importlib",
+      "/mnt/nrf_ssd/nRF_dev_worktrees/fusion-phase3r26c-r1-20260819T154445Z/BioSpur_Fusion/Fusion_Part/tests/fusion_v2/phase3r26c_r1/test_command_bound_regressions.py"
+    ],
+    "command_shell_escaped": "python3 -m pytest -q --import-mode=importlib /mnt/nrf_ssd/nRF_dev_worktrees/fusion-phase3r26c-r1-20260819T154445Z/BioSpur_Fusion/Fusion_Part/tests/fusion_v2/phase3r26c_r1/test_command_bound_regressions.py",
+    "cwd": "/mnt/nrf_ssd/nRF_dev_worktrees/fusion-phase3r26c-r1-20260819T154445Z",
+    "end_utc": "2026-08-19T16:19:34.378229+00:00",
+    "evidence_path": "/tmp/biospur_phase3r26c_r1_raw_20260819T154445Z/command_bound_final/red_0f9be699",
+    "exit_code": 1,
+    "expected": "fail",
+    "forbidden_audit_events": [],
+    "forbidden_roots": [
+      "/mnt/nrf_ssd/nRF_dev_worktrees/fusion-phase3r26c-r1-20260819T154445Z/BioSpur_Fusion/Fusion_Part/tests/integration/test_current_capture_result.py",
+      "/mnt/nrf_ssd/nRF_dev_worktrees/fusion-phase3r26c-r1-20260819T154445Z/BioSpur_Fusion/Fusion_Part/logs",
+      "/tmp/biospur_r26c_r1_base_0f9be699/BioSpur_Fusion/Fusion_Part/tests/integration/test_current_capture_result.py",
+      "/tmp/biospur_r26c_r1_base_0f9be699/BioSpur_Fusion/Fusion_Part/logs"
+    ],
+    "forbidden_strace_events": [],
+    "label": "red_0f9be699",
+    "python_open_log_sha256": "eaf02682a12c814d9b4ad783343228e05cc25d1054478b5c43ff7711f5ea18ba",
+    "qualified": true,
+    "schema": "biospur.phase3r26c_r1.command_evidence.v1",
+    "start_utc": "2026-08-19T16:19:33.219783+00:00",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stdout_sha256": "a52c8d08fc3d10e3bc3ffc138acc8e9992479a293a7f5732d6d6cfd60cb1e2e9",
+    "strace_sha256": "c0bacd8862c042290d1e28a7ddfe0d5e44840902e88f0990a4dde2ad00b32137",
+    "tripwire_role": "MONITOR_AND_BLOCK_ONLY_NO_INPUT_MOCKING",
+    "wrapped_command_argv": [
+      "strace",
+      "-f",
+      "-qq",
+      "-e",
+      "trace=%file",
+      "-o",
+      "/tmp/biospur_phase3r26c_r1_raw_20260819T154445Z/command_bound_final/red_0f9be699/strace.log",
+      "--",
+      "python3",
+      "-m",
+      "pytest",
+      "-q",
+      "--import-mode=importlib",
+      "/mnt/nrf_ssd/nRF_dev_worktrees/fusion-phase3r26c-r1-20260819T154445Z/BioSpur_Fusion/Fusion_Part/tests/fusion_v2/phase3r26c_r1/test_command_bound_regressions.py"
+    ]
+  },
+  "base_commit": "0f9be699277d365a0722b66bf1ada708502669ec",
+  "base_summary": {
+    "failed": 5,
+    "passed": 1,
+    "skipped": 0
+  },
+  "raw_stdout_is_captured": true,
+  "repaired": {
+    "command_argv": [
+      "python3",
+      "-m",
+      "pytest",
+      "-q",
+      "--import-mode=importlib",
+      "BioSpur_Fusion/Fusion_Part/tests/fusion_v2/phase3r26c_r1/test_command_bound_regressions.py"
+    ],
+    "command_shell_escaped": "python3 -m pytest -q --import-mode=importlib BioSpur_Fusion/Fusion_Part/tests/fusion_v2/phase3r26c_r1/test_command_bound_regressions.py",
+    "cwd": "/mnt/nrf_ssd/nRF_dev_worktrees/fusion-phase3r26c-r1-20260819T154445Z",
+    "end_utc": "2026-08-19T16:19:45.653666+00:00",
+    "evidence_path": "/tmp/biospur_phase3r26c_r1_raw_20260819T154445Z/command_bound_final/green_r1",
+    "exit_code": 0,
+    "expected": "pass",
+    "forbidden_audit_events": [],
+    "forbidden_roots": [
+      "/mnt/nrf_ssd/nRF_dev_worktrees/fusion-phase3r26c-r1-20260819T154445Z/BioSpur_Fusion/Fusion_Part/tests/integration/test_current_capture_result.py",
+      "/mnt/nrf_ssd/nRF_dev_worktrees/fusion-phase3r26c-r1-20260819T154445Z/BioSpur_Fusion/Fusion_Part/logs"
+    ],
+    "forbidden_strace_events": [],
+    "label": "green_r1",
+    "python_open_log_sha256": "e4628629d6a8f8107bc6be76700a9b9840d259dec54d42335806afab5b0f5b83",
+    "qualified": true,
+    "schema": "biospur.phase3r26c_r1.command_evidence.v1",
+    "start_utc": "2026-08-19T16:19:44.497163+00:00",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stdout_sha256": "2c74781560d9b77662946a06816fc3615b8619d49214a4ad88a2bab70a7ff2ce",
+    "strace_sha256": "57324a15ccce6fcb7b55ba3f7b86dae1a336723ad7702faa7329513556278769",
+    "tripwire_role": "MONITOR_AND_BLOCK_ONLY_NO_INPUT_MOCKING",
+    "wrapped_command_argv": [
+      "strace",
+      "-f",
+      "-qq",
+      "-e",
+      "trace=%file",
+      "-o",
+      "/tmp/biospur_phase3r26c_r1_raw_20260819T154445Z/command_bound_final/green_r1/strace.log",
+      "--",
+      "python3",
+      "-m",
+      "pytest",
+      "-q",
+      "--import-mode=importlib",
+      "BioSpur_Fusion/Fusion_Part/tests/fusion_v2/phase3r26c_r1/test_command_bound_regressions.py"
+    ]
+  },
+  "repaired_summary": {
+    "failed": 0,
+    "passed": 6,
+    "skipped": 0
+  },
+  "same_fixture": true,
+  "same_independent_oracle": true,
+  "same_test_file_sha256": "930821dd726a7e5f7b499de23b142925736a4aeba1f866232cdc2d1be380ccbe",
+  "schema": "biospur.phase3r26c_r1.command_bound_red_green.v1"
+}
