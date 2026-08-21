@@ -1,0 +1,25 @@
+{
+  "schema": "biospur.phase3r26c_r2.k_kernel_fixture.v1",
+  "cases": [
+    {
+      "case_id": "protocol_axis_line",
+      "factor_kind": "PROTOCOL_AXIS_LINE",
+      "endpoints": ["torso", "protocol_origin"],
+      "typed_k_values": {"torso": 0.35, "upper_arm_left": 0.1},
+      "coordinate_order": ["torso", "upper_arm_left"],
+      "measurement_protocol_relative": 0.2,
+      "expected_residual": 0.15,
+      "modulus": "MODULO_PI"
+    },
+    {
+      "case_id": "hinge_relation",
+      "factor_kind": "HINGE_RP2_RELATION",
+      "endpoints": ["torso", "upper_arm_left"],
+      "typed_k_values": {"torso": 0.6, "upper_arm_left": 0.1},
+      "coordinate_order": ["torso", "upper_arm_left"],
+      "measurement_protocol_relative": 0.0,
+      "expected_residual": 0.5,
+      "modulus": "MODULO_PI"
+    }
+  ]
+}

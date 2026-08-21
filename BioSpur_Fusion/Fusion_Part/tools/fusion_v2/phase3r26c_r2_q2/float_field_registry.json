@@ -1,0 +1,31 @@
+{
+  "schema": "biospur.phase3r26c_r2_q7.float_field_registry.v1",
+  "registry_closed": true,
+  "unknown_fields_rejected": true,
+  "missing_fields_rejected": true,
+  "fields": {
+    "schema": {"classification": "EXACT_ENUM"},
+    "test_nodeids": {"classification": "EXACT_NODEID_SET"},
+    "green_counts": {"classification": "EXACT_COUNT"},
+    "exit_codes": {"classification": "EXACT_EXIT_CODE"},
+    "diagnostic_identities": {"classification": "EXACT_DIAGNOSTIC"},
+    "mutation_ids": {"classification": "EXACT_ORDERED_LIST"},
+    "mutation_classifications": {"classification": "EXACT_ORDERED_LIST"},
+    "ast_match_counts": {"classification": "EXACT_INTEGER"},
+    "ast_digests": {"classification": "EXACT_AST_DIGEST"},
+    "source_hashes": {"classification": "EXACT_SOURCE_DIGEST"},
+    "fixture_raw_bytes_sha256": {"classification": "EXACT_RAW_BYTES"},
+    "schema_keys": {"classification": "EXACT_SCHEMA_SHAPE"},
+    "closure_counts": {"classification": "EXACT_COUNT"},
+    "branch_labels": {"classification": "EXACT_STRING"},
+    "boolean_gates": {"classification": "EXACT_BOOLEAN"},
+    "reference_nonzero_float": {"classification": "FLOAT_EXACT", "unit": "rad"},
+    "h_transport_unit": {"classification": "EXACT_ENUM", "allowed": ["rad"]},
+    "h_transport_max_error": {
+      "classification": "FLOAT_THEORETICAL_ZERO",
+      "unit": "rad",
+      "sign_convention": "nonnegative_maximum",
+      "bound_id": "H_TRANSPORT_BINARY64_GAMMA24_2PI"
+    }
+  }
+}
