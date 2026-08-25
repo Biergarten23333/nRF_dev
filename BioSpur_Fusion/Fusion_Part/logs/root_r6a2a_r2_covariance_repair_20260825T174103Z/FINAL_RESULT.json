@@ -1,0 +1,41 @@
+{
+  "schema": "biospur-root-r6a2a-r2-covariance-repair-final-v1",
+  "verdict": "PASS_ROOT_R6A2A_R2_SYNTHETIC_COVARIANCE_REPAIR",
+  "overall_system_direction": "POSITIVE",
+  "root_r6a2a_r2_qualification": "PASS",
+  "covariance_root_cause_demonstrated": true,
+  "implemented_repair": [
+    "removed repeated unsupported 0.0015 m2 weak-direction covariance addition",
+    "represented weak geometry once through full H/R information and Joseph update",
+    "matched synthetic root P0 to declared 55/35/18 mm initializer axis-error second moments"
+  ],
+  "qualification_attempts": [
+    {"attempt_id": "attempt_001", "status": "FAIL", "gates": "35/36", "failed_gate": "AH"},
+    {"attempt_id": "attempt_002", "status": "PASS", "gates": "36/36", "failed_gate": null}
+  ],
+  "headline_mean_normalized_nees": {
+    "clean": 0.9288121622911754,
+    "global_uwb_outage": 1.128209492816535,
+    "low_vertical_geometry": 1.0070940451698045,
+    "observable_gyro_bias": 0.9801109085855845
+  },
+  "low_vertical": {
+    "chi_square_95_bounds": [0.7422192747492373, 1.2956119718583659],
+    "coverage_1_2_3_sigma": [0.62, 0.98, 1.0],
+    "mean_raw_nominal_scalar_nis_dof_1": 1.4324029046053715,
+    "mean_effective_weighted_scalar_nis_dof_1": 1.3599286330924212,
+    "mean_empirical_squared_error_m2": 0.00017557915634639233,
+    "mean_predicted_covariance_m2": 0.00017527572092461286
+  },
+  "mandatory_gates": {"passed": 36, "total": 36, "all_pass": true},
+  "predecessor_and_r2_tests": {"passed": 157, "all_pass": true},
+  "existing_successful_capabilities_regressed": false,
+  "independent_verification_pending": false,
+  "independent_verification_pass": true,
+  "checkpoint_commit": "THIS_COMMIT",
+  "root_r6a2b_started": false,
+  "real_fusion_executed": false,
+  "real_body_state_updated": false,
+  "real_calibration_slots_written": false,
+  "production_fusion_authorized": false
+}

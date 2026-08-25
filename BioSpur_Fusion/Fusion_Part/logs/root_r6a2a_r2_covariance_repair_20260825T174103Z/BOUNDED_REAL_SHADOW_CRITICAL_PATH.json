@@ -1,0 +1,141 @@
+{
+  "schema": "biospur-bounded-real-shadow-critical-path-v1",
+  "basis": [
+    "sealed Root-R6A1A corrected identity/donning contract",
+    "sealed Root-R6A1B calibration/frame/skin-slip authority contracts",
+    "sealed Root-R6A1C deferred-measurement/world-bridge contract",
+    "sealed Root-R6A1C BSF31CC hardware-family addendum"
+  ],
+  "scope": "minimum evidence for a first read-only bounded real shadow; not Root-R6A2B execution and not production fusion",
+  "real_fusion_executed": false,
+  "real_body_state_updated": false,
+  "real_calibration_slots_written": false,
+  "all_87_slots_required_as_blockers": false,
+  "authoritative_identity_mapping": {
+    "BSFEC35": "forearm_left",
+    "BSFB165": "forearm_right",
+    "BSFAA61": "upper_arm_left",
+    "BSF1120": "upper_arm_right",
+    "BSF31CC": "torso",
+    "BSFC2CC": "pelvis",
+    "BSF44AD": "thigh_left",
+    "BSF3C79": "thigh_right",
+    "BSF6C53": "shank_left",
+    "BSF8BC4": "shank_right"
+  },
+  "hardware_family_invariants": {
+    "common_nine": ["BSFEC35", "BSFB165", "BSFAA61", "BSF1120", "BSFC2CC", "BSF44AD", "BSF3C79", "BSF6C53", "BSF8BC4"],
+    "BSF31CC": ["BSF31CC"],
+    "common_nine_share_one_PCB_enclosure_profile": true,
+    "BSF31CC_reuses_common_nine_mechanical_transforms": false
+  },
+  "minimum_blocker_ids": [
+    "signed_physical_axes_and_session_donning",
+    "imu_to_uwb_nominal_lever_and_phase_centre_uncertainty",
+    "v4_to_navigation_frame_bridge",
+    "torso_top_landmark_definition"
+  ],
+  "prerequisites": [
+    {
+      "prerequisite_id": "signed_physical_axes_and_session_donning",
+      "classification": "BLOCKS_BOUNDED_REAL_SHADOW",
+      "current_evidence": "identity, -Y groundward/gold-UWB-end convention, outward side, and session placements are operator-attested; full signed +X and real axis validation remain pending and angular uncertainty is unquantified",
+      "minimum_qualification_action": "record one labelled neutral donning action for all ten nodes; bind full signed sensor axes to each hardware family and attach a finite angular uncertainty/cone",
+      "production_distinction": "production may require independent enclosure-PCB-IMU metrology; the first shadow needs only a bounded, session-bound signed transform"
+    },
+    {
+      "prerequisite_id": "ten_device_imu_electronic_noise_and_process_noise",
+      "classification": "BLOCKS_PRODUCTION_ONLY",
+      "current_evidence": "synthetic noise is test-only; ten-device multi-temperature real electronic-noise qualification is absent",
+      "minimum_qualification_action": "for the first shadow, use an explicitly conservative bounded prior and sensitivity bracket without writing a real slot; complete per-device multi-temperature characterization before production claims",
+      "production_distinction": "exact device-specific noise/RW fitting is not required to ingest a read-only bounded shadow"
+    },
+    {
+      "prerequisite_id": "subject_anthropometry",
+      "classification": "CAN_USE_BOUNDED_PRIOR",
+      "current_evidence": "direct subject geometry is deferred",
+      "minimum_qualification_action": "declare population/subject bounds for segment geometry and propagate them as uncertainty; do not thaw the real ledger",
+      "production_distinction": "qualified subject measurements improve attribution and accuracy"
+    },
+    {
+      "prerequisite_id": "distal_landmarks",
+      "classification": "OPTIONAL_ACCURACY_IMPROVEMENT",
+      "current_evidence": "wrist/ankle landmark metrology is deferred under precise definitions",
+      "minimum_qualification_action": "omit distal outputs or attach broad declared bounds in the first shadow",
+      "production_distinction": "measure the four declared landmarks for accurate distal endpoint reporting"
+    },
+    {
+      "prerequisite_id": "joint_and_rest_priors",
+      "classification": "CAN_USE_BOUNDED_PRIOR",
+      "current_evidence": "topology is sealed; numerical anatomical joint/rest priors are deferred",
+      "minimum_qualification_action": "use broad literature/anatomical bounds with sensitivity reporting and no real-slot write",
+      "production_distinction": "subject/session qualification is required before precise clinical or performance interpretation"
+    },
+    {
+      "prerequisite_id": "common_nine_hardware_profile",
+      "classification": "ALREADY_CAPTURE_BOUND_AND_IMPORTABLE",
+      "current_evidence": "COMMON_NINE_V0_20_PCB17 is hash-bound to common Gerber, STEP, and enclosure-base CAD for exactly nine named nodes",
+      "minimum_qualification_action": "import the sealed family binding by hash and reject cross-family transform reuse",
+      "production_distinction": "exact internal sensor/antenna transforms remain a separate prerequisite"
+    },
+    {
+      "prerequisite_id": "bsf31cc_hardware_profile",
+      "classification": "ALREADY_CAPTURE_BOUND_AND_IMPORTABLE",
+      "current_evidence": "BSF31CC_V0_20_N5BL is a distinct one-node family; its PCB/band attachment, outward component side, -Y down marker, and operator-measured 6 mm band-to-PCB-bottom distance are sealed with pending uncertainty",
+      "minimum_qualification_action": "import only the BSF31CC family binding and its recorded evidence; never reuse common-nine mechanical transforms",
+      "production_distinction": "button frame, IMU die origin, and RF phase centre remain unresolved"
+    },
+    {
+      "prerequisite_id": "imu_to_uwb_nominal_lever_and_phase_centre_uncertainty",
+      "classification": "BLOCKS_BOUNDED_REAL_SHADOW",
+      "current_evidence": "CAD identifies board component references and the large gold UWB antenna region, but no unique UWB point, phase-centre bound, or IMU die-origin transform is qualified; BSF31CC is mechanically distinct",
+      "minimum_qualification_action": "derive one CAD nominal lever and finite RF/IMU-origin uncertainty for the common-nine family and a separate one for BSF31CC; use them as read-only bounded priors",
+      "production_distinction": "RF/metrology qualification can refine these later; a zero-uncertainty or cross-family lever is forbidden"
+    },
+    {
+      "prerequisite_id": "v4_to_navigation_frame_bridge",
+      "classification": "BLOCKS_BOUNDED_REAL_SHADOW",
+      "current_evidence": "V4 is qualified only as capture-bound relative geometry; T_N_V4 is null and the prior frame-binding result is rank one",
+      "minimum_qualification_action": "supply a qualified survey or labelled gravity-plus-heading bridge with covariance for the named capture",
+      "production_distinction": "display-frame axes cannot substitute for this estimation-frame bridge"
+    },
+    {
+      "prerequisite_id": "anchor_positions_and_delays",
+      "classification": "ALREADY_CAPTURE_BOUND_AND_IMPORTABLE",
+      "current_evidence": "the named C1 capture is hash-bound to current_room_autopos_20260811_183541 layout, manifest, reference, and delay convention",
+      "minimum_qualification_action": "import by deployment/capture hashes and reject cross-deployment reuse or body-motion recalibration",
+      "production_distinction": "a new deployment requires a new bound geometry package"
+    },
+    {
+      "prerequisite_id": "capture_bound_clock_models",
+      "classification": "ALREADY_CAPTURE_BOUND_AND_IMPORTABLE",
+      "current_evidence": "ten ClockModels are sealed per node, boot_epoch, decoder, and named capture with residual sigma",
+      "minimum_qualification_action": "import only after exact node/boot/capture/hash match; propagate sigma and reject generic reuse",
+      "production_distinction": "ClockModels are capture-derived relationships, not independent static calibration slots"
+    },
+    {
+      "prerequisite_id": "skin_slip_nuisance",
+      "classification": "CAN_USE_BOUNDED_PRIOR",
+      "current_evidence": "the qualified structure is a temporally smooth SO(3) nuisance, not one of the 87 slots; numerical bounds are unmeasured",
+      "minimum_qualification_action": "use a conservative near-zero reset prior plus finite magnitude/rate sensitivity bracket and report dependence; do not estimate an unconstrained per-sample extrinsic",
+      "production_distinction": "repeated labelled neutral returns can later qualify session-specific bounds"
+    },
+    {
+      "prerequisite_id": "world_gauge",
+      "classification": "DERIVED_NOT_INDEPENDENT",
+      "current_evidence": "origin/yaw/protocol relationship remain null because T_N_V4 and T_N_P are unresolved",
+      "minimum_qualification_action": "derive the gauge after the V4-navigation bridge and declared convention are fixed; do not independently fit it from body motion",
+      "production_distinction": "world_model_gauge remains null until its dependencies are qualified"
+    },
+    {
+      "prerequisite_id": "torso_top_landmark_definition",
+      "classification": "BLOCKS_BOUNDED_REAL_SHADOW",
+      "current_evidence": "Root-R6A1B records that torso_top has no exact physical landmark definition",
+      "minimum_qualification_action": "declare an unambiguous anatomical landmark definition and a broad bound; precise metrology is not required for the first shadow",
+      "production_distinction": "a definition is mandatory now; precise subject measurement can follow"
+    }
+  ],
+  "first_shadow_entry_criterion": "all four minimum blocker actions completed, all imported capture hashes exact, every bounded prior explicit and sensitivity-tested, and execution remains read-only with zero real-slot writes",
+  "root_r6a2b_started": false,
+  "production_fusion_authorized": false
+}
