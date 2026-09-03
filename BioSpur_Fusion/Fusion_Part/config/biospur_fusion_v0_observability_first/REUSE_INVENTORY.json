@@ -1,0 +1,35 @@
+{
+  "schema": "biospur-pure-imu-v0-observability-first-reuse-inventory-v1",
+  "payload_policy": "metadata, source, contracts, tests, and prior derived diagnostics only; Hxx/Golf/Boxing payload forbidden before a locked candidate",
+  "reusable": [
+    {"path": "config/imu_multi_action_revision_d_d0/D0_STATE_AND_GAUGE_CONTRACT.json", "use": "authoritative 95-coordinate state and single-gauge accounting", "promotion": "conceptual starting point only"},
+    {"path": "config/imu_multi_action_revision_d_d0/D0_ACTION_FACTOR_CONTRACT.json", "use": "action balancing, residual lineage, and data-versus-prior separation", "promotion": "contract concepts only"},
+    {"path": "src/biospur_fusion/imu_multi_action_revision_d/d0_synthetic.py", "use": "finite-difference Jacobian, action accounting, and replay-dependency audit scaffolding", "promotion": "repair required; 72/95 data rank is not qualified"},
+    {"path": "src/biospur_fusion/imu_multi_action_revision_d/d0b_r1_model.py", "use": "joint objective, deterministic multistart, robust least squares, and PCA-as-initializer pattern", "promotion": "repair required; prior run failed and its reduced 47-coordinate product is not this mission's final state"},
+    {"path": "src/biospur_fusion/imu_multi_action_revision_d/d0b_r1_generator.py", "use": "raw-IMU synthetic generation and multiple-truth scaffolding", "promotion": "repair and add weak/off-axis and ambiguity cases"},
+    {"path": "src/biospur_fusion/imu_multi_action_engineering_v1/common_time.py", "use": "single-clock common timeline construction", "promotion": "reusable with capture-bound identity"},
+    {"path": "src/biospur_fusion/v0/frontend.py", "use": "native-time ten-node VQF frontend and bias/rest diagnostics", "promotion": "reusable; ten yaw gauges must remain explicit"},
+    {"path": "src/biospur_fusion/v0/episode.py", "use": "five-phase episode evidence and recovery diagnostics", "promotion": "repair Capture1 selection so late different rests cannot pass"},
+    {"path": "src/biospur_fusion/v0/dual_capture.py", "use": "capture-bound identities, metadata-first bounded ingest, direct-FK and QA plumbing", "promotion": "data/replay plumbing only; _profile_from_rows is rejected"},
+    {"path": "src/biospur_fusion/v0/validation.py", "use": "QMT-off/shared-IK-off variants and canonical FK diagnostics", "promotion": "only after a new fixed profile passes direct FK"},
+    {"path": "config/biospur_fusion_v0/dual_capture_protocol.json", "use": "capture identities, authorized non-H action suites, physical gates, and metadata sources", "promotion": "capture authority"},
+    {"path": "tests/unit/test_imu_multi_action_revision_d_d0.py", "use": "existing deterministic D0 baseline", "promotion": "regression only"},
+    {"path": "tests/v0/test_v0_dual_capture.py", "use": "bounded access, capture isolation, and lock/replay regression scaffolding", "promotion": "reuse after estimator replacement"}
+  ],
+  "preserved_rejected_evidence": [
+    {"path": "logs/v47_ten_node_body_calibration_20260814_093601/analysis_imu_multi_action_revision_d_d0b_synthetic_20260816/RESULT.json", "reason": "FAIL_D0B_SYNTHETIC_NULLSPACE; data rank 72/95 and prior-added rank 92/95"},
+    {"path": "logs/d0b_r1_synthetic_model_qualification_20260816_022949/RESULT.json", "reason": "FAIL_INVALID_PSEUDO_DATA_REMAINS"},
+    {"path": "logs/d0b_r2_observation_lineage_v2_20260816_025655/RESULT.json", "reason": "FAIL_DETERMINISM_OR_CHECKPOINT_INTEGRITY"},
+    {"path": "logs/biospur_fusion_v0_episode_relock_20260827T113236Z/PRELOCK_FIVE_PHASE_EPISODE_DIAGNOSTICS.json", "reason": "preserves Capture1 T-pose 99.345079 degree q90 recovery mismatch evidence"},
+    {"path": "logs/biospur_fusion_v0_episode_relock_20260827T121946Z/PROFILE_CAPTURE2.json", "reason": "rejected 05752bb7 code-lock lineage; metadata/diagnostics only, never an initializer or profile input"}
+  ],
+  "explicitly_rejected": [
+    "src/biospur_fusion/v0/dual_capture.py::_profile_from_rows",
+    "one common yaw claimed to replace nine relative headings",
+    "separate PCA axes stitched into a fixed profile",
+    "QMT or shared IK used to rescue calibration",
+    "late stable different pose used as Capture1 post-rest",
+    "cross-capture profile or identity transfer",
+    "rejected locks c6d9170f... and 05752bb7..."
+  ]
+}

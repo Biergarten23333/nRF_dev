@@ -1,0 +1,256 @@
+{
+  "schema": "biospur-c2-basis-progressive-compliance-matrix-v1",
+  "document_status": "USER_REVIEW_DRAFT_NOT_ACTIVATED",
+  "default_status": "UNVERIFIED_NOT_STARTED",
+  "consequence_classes": {
+    "A": "Stop current run, preserve evidence, repair and continue task; never terminal scientific FAIL by itself.",
+    "B": "Reject candidate/branch only; continue legal branches; no physical threshold relaxation.",
+    "C": "Propagate covariance/information/weight or name uncertainty/conflict; do not stop run by itself.",
+    "D": "Log diagnostic and continue unless a separate Class A integrity invariant fails."
+  },
+  "requirements": [
+    {
+      "id": "C2-000",
+      "requirement": "Before any bespoke solver work, reproduce the unmodified official QMT full-body advanced example and complete a bounded thin C2 adapter attempt within 60 minutes.",
+      "owner": "open-source bootstrap",
+      "consequence": "A",
+      "prestart_evidence": "pinned QMT revision, MIT license, environment lock, upstream example and exact 60-minute budget",
+      "runtime_evidence": "unmodified upstream output, C2 adapter diff, corrected trajectory hashes, front/side/top images, QMT diagnostics and earliest incompatibility if not completed",
+      "status": "UNVERIFIED_NOT_STARTED"
+    },
+    {
+      "id": "C2-001",
+      "requirement": "Canonical Fusion_Part path only; no branch, worktree, checkout copy, or raw-data copy.",
+      "owner": "run lifecycle",
+      "consequence": "A",
+      "prestart_evidence": "resolved cwd, git worktree list, disk-growth baseline",
+      "runtime_evidence": "file-access and disk-growth audit",
+      "status": "UNVERIFIED_NOT_STARTED"
+    },
+    {
+      "id": "C2-002",
+      "requirement": "At least 100 GB free on /mnt/nrf_ssd, 40 GB on root, projected growth no more than 5 GB.",
+      "owner": "run lifecycle",
+      "consequence": "A",
+      "prestart_evidence": "df and projected-output manifest",
+      "runtime_evidence": "final disk delta",
+      "status": "PREPARATION_OBSERVED_255GB_AND_65GB_NOT_A_START_GATE_RESULT"
+    },
+    {
+      "id": "C2-003",
+      "requirement": "C2 only, all ten authoritative hardware IDs exactly once, legacy aliases fail closed.",
+      "owner": "metadata authority",
+      "consequence": "A",
+      "prestart_evidence": "sealed identity hash and exact map comparison",
+      "runtime_evidence": "per-episode identity audit",
+      "status": "UNVERIFIED_NOT_STARTED"
+    },
+    {
+      "id": "C2-004",
+      "requirement": "Fresh immutable metadata preselection exists before any new payload open/hash.",
+      "owner": "preselection lifecycle",
+      "consequence": "A",
+      "prestart_evidence": "new seal with authority, wear, frame, anthropometry, source, config, selection and synthetic hashes",
+      "runtime_evidence": "append-only access audit beginning after seal timestamp",
+      "status": "UNVERIFIED_NOT_STARTED"
+    },
+    {
+      "id": "C2-005",
+      "requirement": "Only raw accelerometer and gyroscope plus timing/status fields are decoded; all forbidden sources remain inaccessible.",
+      "owner": "input firewall",
+      "consequence": "A",
+      "prestart_evidence": "decoder schema and forbidden-token audit",
+      "runtime_evidence": "decoded-field access manifest",
+      "status": "UNVERIFIED_NOT_STARTED"
+    },
+    {
+      "id": "C2-006",
+      "requirement": "Wear directions remain qualitative regions/soft priors; no exact frame construction or hidden small correction lock.",
+      "owner": "mount prior",
+      "consequence": "A",
+      "prestart_evidence": "source audit plus 40/55/70-degree sensitivity mutations",
+      "runtime_evidence": "retained mount branches and prior contribution report",
+      "status": "UNVERIFIED_NOT_STARTED"
+    },
+    {
+      "id": "C2-007",
+      "requirement": "One continuous six-axis orientation state spans the entire capture; episode boundaries never reset VQF or yaw gauge.",
+      "owner": "orientation frontend",
+      "consequence": "A",
+      "prestart_evidence": "lifecycle test and reset-path negative mutation",
+      "runtime_evidence": "single filter instance/state lineage and boundary covariance trace",
+      "status": "UNVERIFIED_NOT_STARTED"
+    },
+    {
+      "id": "C2-008",
+      "requirement": "QMT corrected orientation and time-varying deltaFilt are consumed by factors, refinement, progressive state and viewer.",
+      "owner": "heading correction",
+      "consequence": "A",
+      "prestart_evidence": "dataflow test and constant-collapse negative mutation",
+      "runtime_evidence": "trajectory hashes and consumer manifest",
+      "status": "UNVERIFIED_NOT_STARTED"
+    },
+    {
+      "id": "C2-009",
+      "requirement": "QMT row selection is preregistered, result-independent and noise-aware; exact axis parallelism is not physical truth.",
+      "owner": "functional axis estimator",
+      "consequence": "C",
+      "prestart_evidence": "selection mutation, still-noise covariance, boundary sensitivity",
+      "runtime_evidence": "all selected indices, reasons, excitation distribution and effective rows",
+      "status": "UNVERIFIED_NOT_STARTED"
+    },
+    {
+      "id": "C2-010",
+      "requirement": "Both knees use relevant seated raise, squat and heel-to-butt evidence; initial rest alone cannot qualify an axis.",
+      "owner": "functional factor routing",
+      "consequence": "A",
+      "prestart_evidence": "factor-to-episode map test",
+      "runtime_evidence": "per-joint episode contribution and observability report",
+      "status": "UNVERIFIED_NOT_STARTED"
+    },
+    {
+      "id": "C2-011",
+      "requirement": "Sensor-to-segment rotations and joint/connection lever vectors support full 3D off-axis placements.",
+      "owner": "functional geometry",
+      "consequence": "A",
+      "prestart_evidence": "off-axis randomized synthetic and axial-collapse mutation",
+      "runtime_evidence": "fitted 3D vectors, priors, covariance and bounds",
+      "status": "UNVERIFIED_NOT_STARTED"
+    },
+    {
+      "id": "C2-012",
+      "requirement": "Measured geometry and uncertain landmarks are separated from fitted calibration; no invented torso/hip truth or surface-to-internal substitution.",
+      "owner": "body geometry",
+      "consequence": "A",
+      "prestart_evidence": "parameter ownership inventory and anthropometry audit",
+      "runtime_evidence": "used-versus-fitted parameter table with provenance",
+      "status": "UNVERIFIED_NOT_STARTED"
+    },
+    {
+      "id": "C2-013",
+      "requirement": "Initial still estimates only tilt, bias/noise/stillness and impossible branches; it cannot declare calibration complete.",
+      "owner": "initialization",
+      "consequence": "A",
+      "prestart_evidence": "false-initial-completion mutation",
+      "runtime_evidence": "initial information rank and unresolved-state report",
+      "status": "UNVERIFIED_NOT_STARTED"
+    },
+    {
+      "id": "C2-014",
+      "requirement": "Global graph owns exactly nine relative headings and one pelvis yaw gauge.",
+      "owner": "heading graph",
+      "consequence": "A",
+      "prestart_evidence": "topology and gauge-rank test",
+      "runtime_evidence": "gauge-reduced information spectrum",
+      "status": "UNVERIFIED_NOT_STARTED"
+    },
+    {
+      "id": "C2-015",
+      "requirement": "Multiple physically legal branches survive until cumulative evidence prunes them.",
+      "owner": "branch manager",
+      "consequence": "B",
+      "prestart_evidence": "full-circle/multibranch synthetic and order permutations",
+      "runtime_evidence": "branch lineage, weights, eliminations and reasons",
+      "status": "UNVERIFIED_NOT_STARTED"
+    },
+    {
+      "id": "C2-016",
+      "requirement": "Physical feasibility filters candidates before residual ranking; invalid lower-cost candidates cannot displace legal ones.",
+      "owner": "candidate selector",
+      "consequence": "B",
+      "prestart_evidence": "lower-cost-invalid negative mutation",
+      "runtime_evidence": "all candidate costs and physical verdicts",
+      "status": "PARTIAL_SOURCE_REPAIR_PRESERVED_BUT_NOT_TESTED_OR_ACCEPTED"
+    },
+    {
+      "id": "C2-017",
+      "requirement": "One persistent chronological progressive state retains all complete episodes; no per-action profiles or stitching.",
+      "owner": "progressive state",
+      "consequence": "A",
+      "prestart_evidence": "state-lineage test, reset/stitching mutations and order permutations",
+      "runtime_evidence": "append-only prefix checkpoints with a single state identity",
+      "status": "UNVERIFIED_NOT_STARTED"
+    },
+    {
+      "id": "C2-018",
+      "requirement": "Progress is information/uncertainty/branch/physical/held-out based and may decrease on conflict; never count-based.",
+      "owner": "progress metric",
+      "consequence": "C",
+      "prestart_evidence": "fake-progress and conflicting-evidence mutations",
+      "runtime_evidence": "component curves and named decreases",
+      "status": "UNVERIFIED_NOT_STARTED"
+    },
+    {
+      "id": "C2-019",
+      "requirement": "Static correlation and common bias uncertainty enter covariance/information; samples are not treated as independent votes.",
+      "owner": "weighting model",
+      "consequence": "C",
+      "prestart_evidence": "correlated-noise synthetic and effective-sample-size test",
+      "runtime_evidence": "block covariance and effective-row reports",
+      "status": "UNVERIFIED_NOT_STARTED"
+    },
+    {
+      "id": "C2-020",
+      "requirement": "Every predicate is classified A/B/C/D; no local stochastic threshold terminates the task.",
+      "owner": "contract validator",
+      "consequence": "A",
+      "prestart_evidence": "complete predicate inventory with no unclassified executable gate",
+      "runtime_evidence": "predicate outcomes and applied consequences",
+      "status": "UNVERIFIED_NOT_STARTED"
+    },
+    {
+      "id": "C2-021",
+      "requirement": "Independent synthetic covers human variability, off-axis mounts, drift/noise/degeneracy/order and all mandatory negative mutations.",
+      "owner": "synthetic qualifier",
+      "consequence": "A",
+      "prestart_evidence": "model-independence audit and complete qualification artifact",
+      "runtime_evidence": "synthetic hash bound into preselection",
+      "status": "UNVERIFIED_NOT_STARTED"
+    },
+    {
+      "id": "C2-022",
+      "requirement": "Stage iteration/wall/multistart/worker budgets are fixed before execution; failure triggers causal pivot, not blind restart or relaxation.",
+      "owner": "stage runner",
+      "consequence": "A",
+      "prestart_evidence": "effective budget table and timeout test",
+      "runtime_evidence": "convergence/wall traces and causal pivot record",
+      "status": "UNVERIFIED_NOT_STARTED"
+    },
+    {
+      "id": "C2-023",
+      "requirement": "Final progressive state agrees with a fresh chronological all-episode batch and held-out evidence.",
+      "owner": "final verifier",
+      "consequence": "A",
+      "prestart_evidence": "synthetic equivalence test and preregistered comparison units",
+      "runtime_evidence": "progressive-versus-batch parameter and uncertainty report",
+      "status": "UNVERIFIED_NOT_STARTED"
+    },
+    {
+      "id": "C2-024",
+      "requirement": "Direct raw-path fixed-geometry FK viewer uses no IK, repair or rebase and exports front/side/top views.",
+      "owner": "viewer",
+      "consequence": "A",
+      "prestart_evidence": "viewer dataflow and forbidden-rescue test",
+      "runtime_evidence": "trajectory/config hashes and image paths",
+      "status": "UNVERIFIED_NOT_STARTED"
+    },
+    {
+      "id": "C2-025",
+      "requirement": "Worker and independent monitor inspect actual initial, upper, lower, squat and final images; gross invalidity forces diagnosis and continuation.",
+      "owner": "visual QA",
+      "consequence": "B",
+      "prestart_evidence": "required-frame manifest",
+      "runtime_evidence": "human findings tied to image hashes",
+      "status": "UNVERIFIED_NOT_STARTED"
+    },
+    {
+      "id": "C2-026",
+      "requirement": "Final PASS/INCONCLUSIVE/FAIL is evidence-backed and distinguishes implementation failure from scientific failure.",
+      "owner": "delivery",
+      "consequence": "A",
+      "prestart_evidence": "deliverable schema validation",
+      "runtime_evidence": "hashes, access firewall, tests, synthetic, curves, parameters, conflicts, views and disk delta",
+      "status": "UNVERIFIED_NOT_STARTED"
+    }
+  ]
+}

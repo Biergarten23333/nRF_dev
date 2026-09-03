@@ -1,0 +1,40 @@
+:root {
+  color-scheme: dark;
+  --bg: #071018;
+  --panel: #101b26;
+  --panel-2: #162534;
+  --text: #e7eef6;
+  --muted: #9fb0c0;
+  --line: #31475b;
+  --focus: #7dd3fc;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font-family: system-ui, sans-serif; }
+main { width: min(1500px, 100%); margin: 0 auto; padding: 14px; }
+header { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+h1 { margin: 0 0 8px; font-size: clamp(19px, 2vw, 28px); font-weight: 500; }
+#load-status, footer, .note { color: var(--muted); }
+.toolbar, .timeline, .toggles { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 8px 0; }
+label { display: inline-flex; align-items: center; gap: 6px; }
+button, select, input { color: var(--text); background: var(--panel-2); border: 1px solid var(--line); border-radius: 4px; padding: 6px 8px; font: inherit; }
+button { cursor: pointer; }
+button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+#timeline { flex: 1 1 420px; min-width: 180px; padding: 0; }
+#timestamp-input { width: 110px; }
+#event-select { max-width: min(520px, 70vw); }
+.viewport-wrap { position: relative; border: 1px solid var(--line); background: #050b11; overflow: hidden; }
+#viewport { display: block; width: 100%; height: min(72vh, 760px); min-height: 420px; touch-action: none; cursor: grab; }
+#viewport.dragging { cursor: grabbing; }
+#view-readout { position: absolute; left: 10px; top: 10px; max-width: min(720px, calc(100% - 20px)); padding: 6px 8px; background: rgba(3, 8, 13, .82); color: var(--text); border: 1px solid var(--line); border-radius: 4px; font-variant-numeric: tabular-nums; pointer-events: none; }
+footer { padding: 8px 0 0; }
+.index { padding-top: 36px; }
+.capture-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; margin: 24px 0; }
+.capture-card { display: grid; gap: 8px; min-height: 110px; align-content: center; padding: 18px; color: var(--text); text-decoration: none; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; }
+.capture-card:hover, .capture-card:focus-visible { border-color: var(--focus); }
+.capture-card span { color: var(--muted); }
+code { color: #bae6fd; }
+@media (max-width: 640px) {
+  main { padding: 8px; }
+  #viewport { min-height: 360px; height: 62vh; }
+  #view-readout { font-size: 12px; }
+}

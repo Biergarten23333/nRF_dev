@@ -1,0 +1,24 @@
+{
+  "schema": "biospur-revision-d-trunk-product-semantics-v1",
+  "product": "IMU_ONLY_MULTI_ACTION_CENTERLINE_CALIBRATION_REVISION_D",
+  "clinical_product": false,
+  "claims": {
+    "trunk_turn_axis": "Best-fit functional direction and mismatch cone associated with complete pelvis-relative left/right torso-turn bouts.",
+    "trunk_flex_axis": "Best-fit functional direction and mismatch cone associated with complete pelvis-relative forward-flexion and recovery bouts.",
+    "functional_frame": "The turn and flex directions define a non-clinical trunk functional subspace/frame.",
+    "off_axis_motion": "Natural off-axis motion, pelvic compensation, and human variability are nuisance/model mismatch, not operator failure.",
+    "orthogonality": "An exact coordinate convention in the minimal functional-frame parameterization; it is not information attributed to the human body.",
+    "neutral_and_replay_identity": "The same declared functional frame is used for neutral-zero estimation and label-blind replay application."
+  },
+  "segmentation_forbidden_inputs": [
+    "fitted_functional_axes",
+    "joint_zeros",
+    "solver_parameters",
+    "protocol_priors",
+    "attempt7_x_end",
+    "attempt8_x_end",
+    "expected_output_skeleton",
+    "truth_derived_from_later_fitting"
+  ],
+  "D_MINUS_1_CALIBRATION_PARAMETER_FIREWALL": "REQUIRED_PASS_BEFORE_REAL_SEGMENTATION"
+}

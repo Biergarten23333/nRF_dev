@@ -1,0 +1,42 @@
+{
+  "schema": "biospur-c2-coupled-progressive-config-amendment-v1",
+  "amendment_id": "AMENDMENT_001_REMOVE_TORSO_SCALAR",
+  "append_only": true,
+  "parent_config": "config/c2_coupled_progressive_v1/config.json",
+  "cause": "The sealed base config improperly added two anterior surface-sensor measurements and exposed 0.425 m as a pelvis-to-acromion-line proxy. This is not an observed anatomical connection and is forbidden from calibration and direct-FK geometry.",
+  "effective_changes": [
+    {
+      "operation": "REMOVE_FROM_ALL_CONSUMERS",
+      "path": "proxy_geometry.pelvis_to_acromion_line_proxy_m",
+      "reason": "pelvis sensor to chest sensor distance is not spine length; chest sensor to acromion-line surface distance cannot be added without an observed 3-D landmark mapping"
+    },
+    {
+      "operation": "DECLARE_UNOBSERVED_MULTIMODEL_DISPLAY_OWNER",
+      "path": "proxy_geometry.torso_display_geometry",
+      "value": {
+        "status": "UNOBSERVED_NO_SINGLE_REPRESENTATIVE",
+        "calibration_consumer": false,
+        "posterior_claim": false,
+        "display_owner": "TORSO_DISPLAY_SENSITIVITY_ONLY",
+        "models_m": [0.36, 0.425, 0.49],
+        "models_are_anatomical_estimates": false,
+        "required_presentation": "render every model as a sensitivity set; never select one as the scientific posterior"
+      }
+    },
+    {
+      "operation": "RESTRICT_TO_EXTERNAL_LANDMARK_PROXY",
+      "path": "proxy_geometry.trochanter_proxy_span_m",
+      "value": {
+        "renderer_semantics": "external greater-trochanter landmark span only",
+        "internal_hip_center_spacing": false,
+        "calibration_prior": false,
+        "may_define_display_hip_joint": false
+      }
+    }
+  ],
+  "forbidden_effective_values": {
+    "pelvis_to_acromion_line_single_scalar": true,
+    "torso_length_from_280mm_sensor_distance": true,
+    "internal_hip_spacing_from_335mm_trochanter_span": true
+  }
+}

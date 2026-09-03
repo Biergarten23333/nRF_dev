@@ -1,0 +1,218 @@
+{
+  "schema": "biospur-pure-imu-v0-c2-basis-config-v1",
+  "version": "c2-basis-v1",
+  "capture": "CAPTURE2_ONLY",
+  "input_contract": {
+    "fields": ["acc_raw", "gyro_raw", "global_time_ns", "status", "boot_epoch"],
+    "magnetometer": false,
+    "vendor_or_locked_quaternion": false,
+    "prior_profile_or_shared_ik": false,
+    "manual_pose_or_action_metric_truth": false,
+    "uwb_spatial": false
+  },
+  "episode_segmentation": {
+    "schema": "biospur-fusion-v0-general-five-phase-episode-segmentation-v1",
+    "bin_width_ms": 100,
+    "stable_gyro_q90_max_deg_s": 6.0,
+    "stable_accel_norm_residual_q90_max_mps2": 0.5,
+    "stable_gravity_direction_step_q90_max_deg": 1.0,
+    "activity_gyro_q90_min_deg_s": 8.0,
+    "activity_accel_norm_residual_q90_min_mps2": 0.75,
+    "activity_gravity_direction_step_q90_min_deg": 1.5,
+    "pre_post_rest_gravity_direction_difference_is_audit_only": true,
+    "minimum_verified_rest_duration_s": 0.75,
+    "minimum_stationary_transition_duration_s": 0.1,
+    "maximum_edge_unverified_duration_s": 1.0,
+    "maximum_bridged_unstable_gap_s": 0.2,
+    "minimum_formal_phase_duration_s": 0.5,
+    "rest_verification_requires_signal_stability": true,
+    "whole_buffer_rest_label_allowed": false,
+    "same_method_for_every_capture_action_and_node": true,
+    "failure_result": "CALIBRATION_EPISODE_INCOMPLETE"
+  },
+  "stages": {
+    "A_STILLNESS_BIAS_GRAVITY": {"max_iterations": 1, "wall_limit_s": 5.0},
+    "B_FUNCTIONAL_MOUNTS_CONNECTIONS": {"max_iterations": 100, "wall_limit_s": 45.0},
+    "C_NINE_RELATIVE_HEADINGS": {"max_iterations": 100, "wall_limit_s": 35.0, "multistarts": 12, "maximum_physical_combinations": 50000},
+    "D_ALL_ACTION_REFINEMENT": {"max_iterations": 140, "wall_limit_s": 60.0, "multistarts": 8, "parallel_workers": 8},
+    "PROGRESSIVE_PREFIX_UPDATE": {"max_iterations": 70, "wall_limit_s": 25.0, "multistarts": 4, "parallel_workers": 2},
+    "FRESH_CUMULATIVE_BATCH": {"max_iterations": 160, "wall_limit_s": 90.0, "multistarts": 16, "parallel_workers": 8}
+  },
+  "bounded_pipeline": {
+    "qmt_hinge_axis": {
+      "maximum_input_samples_before_selection": 600,
+      "use_official_qmt_sample_selection": true,
+      "selected_data_size": 300,
+      "selection_window_size": 21,
+      "angular_rate_energy_threshold_rad2_s2": 1.0,
+      "maximum_gauss_newton_iterations": 80,
+      "starts": 3,
+      "minimum_hinge_axis_uncertainty_sigma_deg": 10.0,
+      "hinge_axis_uncertainty_model": "MAX_OF_10_DEG_HUMAN_WORN_FLOOR_AND_QMT_MULTISTART_AXIS_DISPERSION",
+      "selection_aware_cross_denominator": {
+        "excitation_statistic": "sqrt(gyro.T @ inverse(still_gyro_noise_covariance) @ gyro)",
+        "excitation_false_positive_probability": 0.005,
+        "minimum_excitation_mahalanobis_norm": 3.5830373241983744,
+        "minimum_excited_selected_fraction": 0.2,
+        "minimum_effective_excited_rows": 5.0,
+        "alignment_statistic": "sqrt(cross.T @ pinv(P_axis @ still_gyro_observation_covariance @ P_axis.T) @ cross)",
+        "alignment_false_positive_probability": 0.005,
+        "maximum_uninformative_cross_noise_significance": 3.2552472614374586,
+        "material_uninformative_fraction_among_excited": 0.05,
+        "quantile_probability": 0.05,
+        "material_gate_requires_fraction_and_quantile": true,
+        "named_conflict_requires_all_multistarts_material": true,
+        "isolated_near_axis_rows_are_uninformative_not_failure": true,
+        "threshold_provenance": "capture-independent chi-square 0.5-percent false-positive levels locked before another real C2 run; covariance is initial-still sensor noise plus quantization and common bias uncertainty; five-percent distributional materiality is mutation-qualified and isolated rows cannot gate"
+      },
+      "static_or_axis_parallel_rows_are_joint_axis_low_information_not_deleted_from_other_factors": true
+    },
+    "qmt_heading_signal": {
+      "qmt_official_rating_minimum": 0.25,
+      "relative_axis_rate_two_sided_false_positive_probability": 0.005,
+      "minimum_relative_axis_rate_mahalanobis_q90": 2.807033768343811,
+      "minimum_active_motion_fraction": 0.05,
+      "minimum_effective_informative_rows": 5.0,
+      "maximum_lag1_correlation": 0.98,
+      "threshold_provenance": "capture-independent two-sided Gaussian 0.5-percent false-positive level for bias-corrected relative-axis rate; QMT rating minimum is the official public implementation setting"
+    },
+    "wall_limits_s": {
+      "PROGRESSIVE": {
+        "functional_candidate_bank": 8.0,
+        "factor_construction": 4.0,
+        "objective_construction": 4.0,
+        "held_out_evaluation": 6.0
+      },
+      "FULL": {
+        "functional_candidate_bank": 45.0,
+        "factor_construction": 15.0,
+        "objective_construction": 10.0,
+        "held_out_evaluation": 15.0
+      },
+      "BATCH": {
+        "functional_candidate_bank": 45.0,
+        "factor_construction": 15.0,
+        "objective_construction": 10.0,
+        "held_out_evaluation": 15.0
+      }
+    },
+    "existing_solver_iteration_and_wall_limits_unchanged": true
+  },
+  "sampling": {
+    "working_rate_hz": 50,
+    "correlation_block_s": 0.5,
+    "held_out_strategy": "DETERMINISTIC_BLOCKED_WITHIN_EACH_COMPLETE_EPISODE",
+    "held_out_block_modulus": 5,
+    "held_out_block_residue": 4,
+    "minimum_joint_center_block_sigma_mps2": 0.05,
+    "maximum_joint_center_block_sigma_mps2": 2.0,
+    "kinematic_noise_lever_bound_derivation": "FIXED_GEOMETRY_MAXIMUM_CONNECTION_VECTOR_NORMS_INDEPENDENT_OF_TRUTH_FIT_AND_RESIDUALS",
+    "maximum_lag1_correlation": 0.98,
+    "minimum_training_blocks_per_episode": 3,
+    "minimum_held_out_blocks_per_episode": 1
+  },
+  "stillness_uncertainty": {
+    "gyro_raw_lsb_dps": 0.06103515625,
+    "accelerometer_raw_lsb_mps2": 0.0047884033203125,
+    "quantization_variance_model": "LSB_SQUARED_OVER_12_ADDED_TO_INITIAL_STILL_SAMPLE_COVARIANCE",
+    "gyro_bias_estimator": "PER_AXIS_MEDIAN",
+    "gyro_bias_covariance_model": "PI_OVER_2_TIMES_OBSERVATION_COVARIANCE_OVER_CORRELATION_REDUCED_EFFECTIVE_ROWS",
+    "initial_still_information_scope": ["gravity_tilt", "gyro_bias", "gyro_noise", "accelerometer_noise", "impossible_branch_rejection"],
+    "initial_still_forbidden_unique_claims": ["yaw", "joint_axis", "joint_center", "bone_length", "axial_mount_twist", "sagittal_branch", "calibration_complete"]
+  },
+  "wear_direction": {
+    "primary_cone_half_angle_deg": 55.0,
+    "sensitivity_cone_half_angles_deg": [40.0, 70.0],
+    "opposite_hemisphere_rejection_margin_deg": 10.0,
+    "maximum_final_mount_correction_deg": 25.0,
+    "maximum_retained_functional_candidates": 32,
+    "functional_branch_minimum_relative_likelihood": 0.05,
+    "maximum_functional_center_length_mismatch_m": 0.05,
+    "hinge_axis_excitation_gate": "ACTUAL_QMT_SELECTED_ROWS_STANDARDIZED_BY_CAPTURE_WIDE_STILL_GYRO_COVARIANCE",
+    "trunk_connection_excitation_gate": "KINEMATIC_RMS_STANDARDIZED_BY_PROPAGATED_GYRO_NOISE",
+    "minimum_trunk_kinematic_noise_significance": 3.5,
+    "trunk_significance_provenance": "capture-independent signal-to-propagated-sensor-noise ratio subject to focused mutation and full independent synthetic qualification; dynamic residual and jerk are excluded from the denominator"
+  },
+  "geometry": {
+    "lengths_are_estimator_coordinates": false,
+    "upper_arm_nominal_m": 0.3175,
+    "upper_arm_bounds_m": [0.29, 0.345],
+    "forearm_nominal_m": 0.255,
+    "forearm_bounds_m": [0.225, 0.285],
+    "thigh_nominal_m": 0.48,
+    "thigh_bounds_m": [0.45, 0.51],
+    "shank_nominal_m": 0.43,
+    "shank_bounds_m": [0.40, 0.46],
+    "biacromial_nominal_m": 0.4125,
+    "biacromial_bounds_m": [0.39, 0.435],
+    "chest_to_acromion_nominal_m": 0.145,
+    "chest_to_acromion_bounds_m": [0.13, 0.16],
+    "pelvis_imu_to_chest_imu_m": 0.28,
+    "pelvis_imu_to_chest_imu_bounds_m": [0.26, 0.30],
+    "pelvis_center_to_hip_center_vertical_offset_m": 0.06,
+    "sensor_axial_offset_nominal_m": [0.05, 0.04, 0.05, 0.04, 0.08, 0.08, 0.08, 0.08],
+    "sensor_axial_offset_lower_m": [0.015, 0.015, 0.015, 0.015, 0.03, 0.03, 0.03, 0.03],
+    "sensor_axial_offset_upper_m": [0.11, 0.10, 0.11, 0.10, 0.16, 0.16, 0.16, 0.16],
+    "internal_hip_center_spacing_status": "UNMEASURED_NOT_DERIVED_FROM_SURFACE_BREADTHS",
+    "internal_hip_center_spacing_nominal_m": 0.22,
+    "internal_hip_center_spacing_sensitivity_m": [0.18, 0.22, 0.26]
+  },
+  "hard_feasibility": {
+    "minimum_left_right_joint_separation_m": 0.02,
+    "maximum_standing_knee_front_back_split_m": 0.08,
+    "minimum_standing_proximal_distal_vertical_drop_m": 0.08,
+    "maximum_segment_length_error_m": 0.000001,
+    "minimum_rotation_determinant": 0.999,
+    "rom_tolerance_deg": 10.0,
+    "physical_gate_is_optimizer_loss": false
+  },
+  "acceptance": {
+    "gauge_reduced_heading_rank": 9,
+    "maximum_heading_posterior_sigma_deg": 15.0,
+    "maximum_multistart_branch_spread_deg": 15.0,
+    "maximum_functional_mount_branch_spread_deg": 25.0,
+    "maximum_progressive_batch_heading_difference_deg": 3.0,
+    "maximum_progressive_batch_mount_difference_deg": 5.0,
+    "maximum_held_out_joint_center_nrmse": 2.5,
+    "minimum_held_out_improvement_over_uncalibrated_fraction": 0.15,
+    "initial_still_may_be_ready": false,
+    "all_hard_physical_gates": true,
+    "independent_visual_gate": true
+  },
+  "synthetic_acceptance": {
+    "maximum_heading_truth_error_deg": 5.0,
+    "maximum_mount_rotation_truth_error_deg": 20.0,
+    "maximum_axial_offset_truth_error_m": 0.02,
+    "require_all_qmt_qualifications": true,
+    "degenerate_case_must_reject": true
+  },
+  "references": [
+    {
+      "name": "qmt Quaternion-based Inertial Motion Tracking Toolbox",
+      "url": "https://github.com/dlaidig/qmt",
+      "version": "0.2.4",
+      "license": "MIT",
+      "reuse": "execute installed public API; no source copied"
+    },
+    {
+      "name": "Magnetometer-free joint heading correction",
+      "doi": "10.1109/TBME.2016.2587737",
+      "reuse": "parent-child kinematic heading-correction concept"
+    },
+    {
+      "name": "Joint axis estimation from inertial sensors",
+      "doi": "10.3390/s20123534",
+      "reuse": "execute qmt jointAxisEstHingeOlsson baseline"
+    },
+    {
+      "name": "Joint-center constraints for inertial sensor alignment",
+      "doi": "10.1109/TBME.2014.2320920",
+      "reuse": "specific-force joint-center equality concept; independent implementation"
+    },
+    {
+      "name": "VQF orientation estimation",
+      "doi": "10.1016/j.inffus.2022.10.014",
+      "reuse": "execute installed vqf public API in magnetometer-free 6D mode"
+    }
+  ]
+}

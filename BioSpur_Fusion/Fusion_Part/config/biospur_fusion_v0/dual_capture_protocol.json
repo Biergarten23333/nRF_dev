@@ -1,0 +1,204 @@
+{
+  "schema": "biospur-fusion-v0-dual-capture-protocol-v1",
+  "goal": "BIOSPUR_FUSION_V0_DUAL_CAPTURE_INDEPENDENT_CALIBRATION_AND_COMPLETE_REPLAY",
+  "suite_partition_policy": "MAIN_SUITE_1 and MAIN_SUITE_2 are goal-local logical replay partitions, not suite labels recorded by either acquisition. Native action IDs and acquisition roles remain authoritative. A calibration-contributing motion may be replayed in one logical partition as well as in calibration self-replay; this does not make the replay a calibration input twice.",
+  "semantic_qa_contract": {
+    "classification": "PREDECLARED_GENERAL_BODY_RELATIVE_CRITERIA",
+    "minimum_joint_excursion_deg": 10.0,
+    "stationary_noise_multiplier": 5.0,
+    "functional_axis_uncertainty_multiplier": 3.0,
+    "minimum_endpoint_excursion_forearm_lengths": 0.15,
+    "sagittal_lateral_variance_max_fraction": 0.25,
+    "overhead_upper_arm_elevation_boundary_deg": 45.0,
+    "tpose_posture_noise_multiplier": 3.0,
+    "comparatively_unaffected_target_ratio_min": 2.0,
+    "calibration_episode": {
+      "schema": "biospur-fusion-v0-general-five-phase-episode-segmentation-v1",
+      "bin_width_ms": 100,
+      "stable_gyro_q90_max_deg_s": 6.0,
+      "stable_accel_norm_residual_q90_max_mps2": 0.5,
+      "stable_gravity_direction_step_q90_max_deg": 1.0,
+      "activity_gyro_q90_min_deg_s": 8.0,
+      "activity_accel_norm_residual_q90_min_mps2": 0.75,
+      "activity_gravity_direction_step_q90_min_deg": 1.5,
+      "pre_post_rest_gravity_direction_difference_is_audit_only": true,
+      "minimum_verified_rest_duration_s": 0.75,
+      "maximum_edge_unverified_duration_s": 1.0,
+      "maximum_bridged_unstable_gap_s": 0.2,
+      "minimum_formal_phase_duration_s": 0.5,
+      "rest_verification_requires_signal_stability": true,
+      "whole_buffer_rest_label_allowed": false,
+      "same_method_for_every_capture_action_and_node": true,
+      "failure_result": "CALIBRATION_EPISODE_INCOMPLETE"
+    },
+    "fixed_profile_attitude": {
+      "minimum_multiframe_gravity_separation_deg": 30.0,
+      "dynamic_initialization_frame_count": 10,
+      "post_lock_per_segment_yaw_parameters_allowed": 0,
+      "post_lock_action_pose_templates_allowed": false,
+      "post_lock_joint_rest_or_extrinsic_refit_allowed": false,
+      "cross_action_state_propagation_allowed": false,
+      "unobservable_fixed_profile_replay_result": "BLOCKED"
+    },
+    "hard_reference_pose_fk": {
+      "upright_axis_max_angle_deg": 15.0,
+      "neutral_limb_vertical_max_angle_deg": 20.0,
+      "neutral_bilateral_arm_asymmetry_max_deg": 12.0,
+      "tpose_arm_horizontal_max_angle_deg": 20.0,
+      "tpose_arm_lateral_max_angle_deg": 25.0,
+      "arm_chain_straight_max_angle_deg": 20.0
+    },
+    "physical_pass_requires_supervisor_live_viewer_judgment": true,
+    "global_or_viewer_y_axis_may_define_physical_front": false,
+    "unsupported_semantic_status": "INCONCLUSIVE"
+  },
+  "captures": {
+    "CAPTURE1": {
+      "capture_id": "v47_ten_node_body_calibration_20260814_093601",
+      "capture_root": "logs/v47_ten_node_body_calibration_20260814_093601",
+      "metadata_sources": [
+        "logs/v47_ten_node_body_calibration_20260814_093601/CAPTURE_COMPLETE.json",
+        "logs/v47_ten_node_body_calibration_20260814_093601/FORMAL_T0.json",
+        "logs/v47_ten_node_body_calibration_20260814_093601/RUNTIME_TDMA_MANIFEST.json",
+        "logs/v47_ten_node_body_calibration_20260814_093601/ACTION_EVENTS.jsonl",
+        "config/captures/v47_ten_node_body_calibration_20260814_093601.json"
+      ],
+      "raw_container": "logs/v47_ten_node_body_calibration_20260814_093601/continuous_collector/fusion_host_raw.cobs.bin",
+      "raw_sha256": "a491520739400064db520377ec87a9331feb6274cd42a7e6d9aad57a2b93d56a",
+      "imu_time_ledger": "logs/v47_ten_node_body_calibration_20260814_093601/analysis_body_fusion_v2/TIME_EVENT_LEDGER.npz",
+      "timing_sources": [
+        "logs/v47_ten_node_body_calibration_20260814_093601/continuous_collector/fusion_cdc.log",
+        "logs/v47_ten_node_body_calibration_20260814_093601/listener_capture_5"
+      ],
+      "identity_source": "config/captures/v47_ten_node_body_calibration_20260814_093601.json",
+      "identity": {
+        "BSF1120": "upper_arm_right",
+        "BSF31CC": "torso",
+        "BSF3C79": "thigh_right",
+        "BSF44AD": "thigh_left",
+        "BSF6C53": "shank_left",
+        "BSF8BC4": "shank_right",
+        "BSFAA61": "upper_arm_left",
+        "BSFB165": "forearm_left",
+        "BSFC2CC": "pelvis",
+        "BSFEC35": "forearm_right"
+      },
+      "calibration_inputs": [
+        "initial_still", "t_pose", "arms", "left_elbow", "right_elbow",
+        "left_knee", "right_knee", "left_heel", "right_heel", "squats", "trunk",
+        "final_still"
+      ],
+      "reference_actions": ["initial_still", "t_pose"],
+      "stationary_reference_actions": ["initial_still", "final_still"],
+      "functional_axis_actions": {
+        "elbow_left": "left_elbow",
+        "elbow_right": "right_elbow",
+        "knee_left": "left_knee",
+        "knee_right": "right_knee"
+      },
+      "main_suite_1": [
+        "arms", "left_elbow", "right_elbow", "left_knee", "right_knee",
+        "left_heel", "right_heel"
+      ],
+      "main_suite_2": ["squats", "trunk", "final_still"],
+      "hxx": [
+        {"action": "walk", "hxx_id": "H00_walk"},
+        {"action": "boxing", "hxx_id": "H01_boxing"},
+        {"action": "golf_swing", "hxx_id": "H02_golf"}
+      ],
+      "inventory_contract": {
+        "native_accepted_action_count": 15,
+        "accepted_non_hxx_action_count": 12,
+        "hxx_action_count": 3,
+        "hxx_crosswalk": {
+          "walk": "H00_walk",
+          "boxing": "H01_boxing",
+          "golf_swing": "H02_golf"
+        },
+        "final_still_is_separate_non_hxx_action": true,
+        "main_suite_label_provenance": "GOAL_LOCAL_LOGICAL_PARTITION_NOT_RECORDED_ACQUISITION_SUITE"
+      }
+    },
+    "CAPTURE2": {
+      "capture_id": "phase2_targeted_calibration_20260817t130918z_capture_2_with_joint_label_c8645eb2",
+      "capture_root": "datasets/phase2_calibration/phase2_targeted_calibration_20260817t130918z_capture_2_with_joint_label_c8645eb2",
+      "metadata_sources": [
+        "datasets/phase2_calibration/phase2_targeted_calibration_20260817t130918z_capture_2_with_joint_label_c8645eb2/CAPTURE_PLAN_FINAL.json",
+        "datasets/phase2_calibration/phase2_targeted_calibration_20260817t130918z_capture_2_with_joint_label_c8645eb2/SESSION_MANIFEST.json",
+        "datasets/phase2_calibration/phase2_targeted_calibration_20260817t130918z_capture_2_with_joint_label_c8645eb2/identity/SEALED_NODE_TO_BODY_GROUND_TRUTH.json",
+        "datasets/phase2_calibration/phase2_targeted_calibration_20260817t130918z_capture_2_with_joint_label_c8645eb2/system/readiness/SYSTEM_READINESS_REPORT.json",
+        "datasets/phase2_calibration/phase2_targeted_calibration_20260817t130918z_capture_2_with_joint_label_c8645eb2/subject/ACTUAL_ACTION_EXECUTION_TABLE.md",
+        "logs/biospur_fusion_v0_dual_capture_closure_20260827T063045Z/CAPTURE2/MAIN_SUITE_2/19_heel_to_butt_right/ACCESS_AUDIT.json"
+      ],
+      "raw_container": "datasets/phase2_calibration/phase2_targeted_calibration_20260817t130918z_capture_2_with_joint_label_c8645eb2/system/fusion_continuous/fusion_host_raw.cobs.bin",
+      "raw_sha256": "74c1fdbbe7c302bc21b0665bff50137e84537946a347ea11133e1e6751c84268",
+      "timing_sources": [
+        "datasets/phase2_calibration/phase2_targeted_calibration_20260817t130918z_capture_2_with_joint_label_c8645eb2/system/fusion_continuous/fusion_cdc.log",
+        "datasets/phase2_calibration/phase2_targeted_calibration_20260817t130918z_capture_2_with_joint_label_c8645eb2/system/listeners/passive_5"
+      ],
+      "timing_safe_ceiling_seed_source": {
+        "path": "logs/biospur_fusion_v0_dual_capture_closure_20260827T063045Z/CAPTURE2/MAIN_SUITE_2/19_heel_to_butt_right/ACCESS_AUDIT.json",
+        "sha256": "120c2fdd6ca6c0c6bc7a06fc6ea3e1314963bfcea1389e32a7a6c27255f2bc54",
+        "field": "common_clock.gate.timing_access.sequential_windows",
+        "semantics": "PRESERVED_HISTORICAL_NON_HXX_ACTION_TIMING_WINDOW_END_BYTE_BOUNDARIES_USED_ONLY_AS_MONOTONIC_SAFE_CEILING_SEEDS"
+      },
+      "identity_source": "datasets/phase2_calibration/phase2_targeted_calibration_20260817t130918z_capture_2_with_joint_label_c8645eb2/identity/SEALED_NODE_TO_BODY_GROUND_TRUTH.json",
+      "identity": {
+        "BSF1120": "upper_arm_right",
+        "BSF31CC": "torso",
+        "BSF3C79": "thigh_right",
+        "BSF44AD": "thigh_left",
+        "BSF6C53": "shank_left",
+        "BSF8BC4": "shank_right",
+        "BSFAA61": "upper_arm_left",
+        "BSFB165": "forearm_right",
+        "BSFC2CC": "pelvis",
+        "BSFEC35": "forearm_left"
+      },
+      "calibration_inputs": [
+        "00_initial_still", "02_t_pose", "03_pelvis_hula_circle",
+        "04_shoulder_left", "05_shoulder_right", "06_elbow_left",
+        "07_elbow_right", "08_hip_left", "09_hip_right",
+        "10_knee_left_seated", "11_knee_right_seated", "12_heel_raise_left",
+        "13_heel_raise_right", "14_trunk_flex_extend",
+        "15_trunk_axial_rotation", "16_squat", "17_final_still",
+        "18_heel_to_butt_left", "19_heel_to_butt_right"
+      ],
+      "reference_actions": ["00_initial_still", "02_t_pose"],
+      "stationary_reference_actions": ["00_initial_still", "17_final_still"],
+      "functional_axis_actions": {
+        "elbow_left": "06_elbow_left",
+        "elbow_right": "07_elbow_right",
+        "knee_left": "10_knee_left_seated",
+        "knee_right": "11_knee_right_seated"
+      },
+      "main_suite_1": [
+        "03_pelvis_hula_circle", "04_shoulder_left", "05_shoulder_right",
+        "06_elbow_left", "07_elbow_right", "08_hip_left", "09_hip_right",
+        "10_knee_left_seated", "11_knee_right_seated"
+      ],
+      "main_suite_2": [
+        "12_heel_raise_left", "13_heel_raise_right", "14_trunk_flex_extend",
+        "15_trunk_axial_rotation", "16_squat", "17_final_still",
+        "18_heel_to_butt_left", "19_heel_to_butt_right"
+      ],
+      "hxx": [
+        {"action": "H00_walk", "hxx_id": "H00_walk"},
+        {"action": "H01_boxing", "hxx_id": "H01_boxing"},
+        {"action": "H02_golf", "hxx_id": "H02_golf"}
+      ],
+      "inventory_contract": {
+        "accepted_non_hxx_action_count": 19,
+        "hxx_action_count": 3,
+        "total_accepted_action_count": 22,
+        "deleted_or_unexecuted": ["01_neutral_sway"],
+        "retry_or_skip_history_excluded": ["rep_02", "rep_03"],
+        "promoted_repetition": "rep_01",
+        "main_suite_label_provenance": "GOAL_LOCAL_LOGICAL_PARTITION_NOT_RECORDED_ACQUISITION_SUITE"
+      },
+      "operator_truth": {
+        "06_elbow_left": "Left elbow flexion/extension and forearm rotation were performed in front of the body; the arm was not raised overhead."
+      }
+    }
+  }
+}

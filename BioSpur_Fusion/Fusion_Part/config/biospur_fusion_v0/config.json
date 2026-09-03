@@ -1,0 +1,83 @@
+{
+  "schema": "biospur-fusion-v0-config-v1",
+  "biospur_fusion_version": "V0",
+  "primary_mode": "TEN_NODE_MAGNETOMETER_FREE_6AXIS_IMU",
+  "product_target": "STABLE_BODY_RELATIVE_WHOLE_BODY_TRACKING",
+  "ledger": "logs/v47_ten_node_body_calibration_20260814_093601/analysis_body_fusion_v2/TIME_EVENT_LEDGER.npz",
+  "r4_candidate": "logs/root_r6a2b_r4_functional_axis_20260826T170000Z/DEVELOPMENT_ONLY_REAL_CALIBRATION_CANDIDATE.json",
+  "r4_axis_table": "logs/root_r6a2b_r4_functional_axis_20260826T170000Z/FUNCTIONAL_AXIS_COMPARISON_TABLE.json",
+  "identity": {
+    "BSFEC35": "forearm_left",
+    "BSFB165": "forearm_right",
+    "BSFAA61": "upper_arm_left",
+    "BSF1120": "upper_arm_right",
+    "BSF31CC": "torso",
+    "BSFC2CC": "pelvis",
+    "BSF44AD": "thigh_left",
+    "BSF3C79": "thigh_right",
+    "BSF6C53": "shank_left",
+    "BSF8BC4": "shank_right"
+  },
+  "uwb": {
+    "beacon_timebase_used": true,
+    "ranging_used": false,
+    "position_aid_used": false,
+    "calibration_residual_used": false,
+    "pose_correction_used": false,
+    "derived_spatial_parameters_used": false
+  },
+  "capture1_windows": [
+    {"label": "initial_still2", "start_global_time_ns": 2986078873797, "stop_global_time_ns_exclusive": 2994078940466},
+    {"label": "t_pose", "start_global_time_ns": 3019030103768, "stop_global_time_ns_exclusive": 3027030170523},
+    {"label": "arms", "start_global_time_ns": 3065724244760, "stop_global_time_ns_exclusive": 3212615253685},
+    {"label": "left_elbow", "start_global_time_ns": 3371591610404, "stop_global_time_ns_exclusive": 3411475048316},
+    {"label": "right_elbow2", "start_global_time_ns": 3494725933278, "stop_global_time_ns_exclusive": 3528015255640},
+    {"label": "left_knee", "start_global_time_ns": 3551740910191, "stop_global_time_ns_exclusive": 3579592651754},
+    {"label": "right_knee", "start_global_time_ns": 3602476636179, "stop_global_time_ns_exclusive": 3627048980515},
+    {"label": "left_heel", "start_global_time_ns": 3666677754354, "stop_global_time_ns_exclusive": 3687781716166},
+    {"label": "right_heel", "start_global_time_ns": 3712252142978, "stop_global_time_ns_exclusive": 3737709976189},
+    {"label": "squats", "start_global_time_ns": 3761427161163, "stop_global_time_ns_exclusive": 3785916206867},
+    {"label": "trunk", "start_global_time_ns": 3814053447917, "stop_global_time_ns_exclusive": 3854622450716}
+  ],
+  "frontend": {
+    "selected": "VQF_2_0_1_NATIVE_TIME_HYBRID",
+    "max_gap_ns": 20000000,
+    "output_rate_hz": 10,
+    "signed_axis_representative": "+X,+Y,+Z"
+  },
+  "relative_heading": {
+    "method": "QMT_0_2_4_SOFT_CONFIDENCE_SCALED",
+    "window_time_s": 8.0,
+    "estimation_rate_hz": 1.0,
+    "data_rate_hz": 5.0,
+    "tau_delta_s": 5.0,
+    "tau_bias_s": 5.0,
+    "rating_min": 0.4,
+    "maximum_soft_gain": 0.2
+  },
+  "shared_ik": {
+    "temporal_tau_s": 0.12,
+    "robust_rotation_scale_deg": 45.0,
+    "neutral_reference_weight": 0.002,
+    "functional_axis_max_weight": 0.15
+  },
+  "display_geometry": {
+    "pelvis_torso": {"parent": [0.0, 0.0, 0.18], "child": [0.0, 0.0, -0.22]},
+    "shoulder_left": {"parent": [-0.23, 0.0, 0.22], "child": [0.0, 0.0, 0.0]},
+    "elbow_left": {"parent": [0.0, 0.0, -0.30], "child": [0.0, 0.0, 0.0]},
+    "shoulder_right": {"parent": [0.23, 0.0, 0.22], "child": [0.0, 0.0, 0.0]},
+    "elbow_right": {"parent": [0.0, 0.0, -0.30], "child": [0.0, 0.0, 0.0]},
+    "hip_left": {"parent": [-0.10, 0.0, -0.06], "child": [0.0, 0.0, 0.0]},
+    "knee_left": {"parent": [0.0, 0.0, -0.43], "child": [0.0, 0.0, 0.0]},
+    "hip_right": {"parent": [0.10, 0.0, -0.06], "child": [0.0, 0.0, 0.0]},
+    "knee_right": {"parent": [0.0, 0.0, -0.43], "child": [0.0, 0.0, 0.0]}
+  },
+  "claim_boundary": {
+    "root_position_mode": "ROOT_POSITION_DISPLAY_GAUGE_FIXED",
+    "global_yaw": "UNOBSERVABLE_MAY_DRIFT_NOT_NORTH",
+    "metric_skeleton": "NO_DISPLAY_ONLY_NON_METRIC_GEOMETRY",
+    "clinical_angles": false,
+    "external_accuracy_validated": false,
+    "skin_slip": "ROBUST_OR_UNMODELLED"
+  }
+}

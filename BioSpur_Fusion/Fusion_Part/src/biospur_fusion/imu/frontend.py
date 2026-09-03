@@ -33,7 +33,8 @@ class ImuFrontendAudit:
 
 
 def run_q1_attitude(imu: np.ndarray, *, node_id: str, initial_start_ns: int, initial_end_ns: int,
-                    analysis_end_ns: int, decimation: int = 4) -> tuple[np.ndarray, ImuFrontendAudit]:
+                    analysis_end_ns: int, decimation: int = 4,
+                    max_gap_s: float | None = None) -> tuple[np.ndarray, ImuFrontendAudit]:
     valid = (imu["status"] == 1) & (imu["global_time_ns"] <= analysis_end_ns)
     initial = valid & (imu["global_time_ns"] >= initial_start_ns) & (imu["global_time_ns"] <= initial_end_ns)
     if int(initial.sum()) < 200:
@@ -57,9 +58,17 @@ def run_q1_attitude(imu: np.ndarray, *, node_id: str, initial_start_ns: int, ini
     duplicate_timestamps = int((~unique).sum())
     indices = indices[unique]
     gap_boundaries = 0
+    gap_limit_s = q1.parameters.max_dt_s if max_gap_s is None else float(max_gap_s)
+    previous_index: int | None = None
     for ordinal, index in enumerate(indices):
         time_s = int(imu[index]["global_time_ns"]) / 1e9
-        if q1.last_timestamp_s is not None and time_s - q1.last_timestamp_s > q1.parameters.max_dt_s:
+        boot_changed = (
+            previous_index is not None and "boot_epoch" in (imu.dtype.names or ())
+            and int(imu[index]["boot_epoch"]) != int(imu[previous_index]["boot_epoch"])
+        )
+        if q1.last_timestamp_s is not None and (
+            time_s - q1.last_timestamp_s > gap_limit_s or boot_changed
+        ):
             # Do not fabricate samples across an unsupported gap. Attitude is
             # carried to an explicit boundary and propagation resumes after it.
             q1.last_timestamp_s = time_s
@@ -78,6 +87,7 @@ def run_q1_attitude(imu: np.ndarray, *, node_id: str, initial_start_ns: int, ini
         if ordinal % decimation == 0:
             rows.append((int(imu[index]["global_time_ns"]), q1.q.copy(), q1.b_g.copy(), q1.b_a.copy(),
                          motion == "STATIONARY"))
+        previous_index = int(index)
     timeline = np.asarray(rows, dtype=np.dtype([
         ("global_time_ns", "<i8"), ("q_wxyz", "<f8", (4,)), ("gyro_bias_rad_s", "<f8", (3,)),
         ("accel_bias_mps2", "<f8", (3,)), ("stationary", "?"),

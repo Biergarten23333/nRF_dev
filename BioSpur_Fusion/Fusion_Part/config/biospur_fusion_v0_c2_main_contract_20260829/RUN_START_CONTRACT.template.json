@@ -1,0 +1,158 @@
+{
+  "schema": "biospur-c2-basis-progressive-run-start-v2",
+  "template_only_not_a_seal": true,
+  "activation": {
+    "explicit_user_start_message_id": "__REQUIRED__",
+    "explicit_user_start_text_sha256": "__REQUIRED__",
+    "start_time_utc": "__REQUIRED__",
+    "start_time_local": "__REQUIRED__",
+    "deadline_18h_utc": "__REQUIRED__",
+    "work_thread_id": "__REQUIRED__",
+    "monitor_thread_id": "__REQUIRED__",
+    "host": "local"
+  },
+  "roles": {
+    "sole_writer": "ENGLISH_WORK",
+    "strict_read_only_monitor": "CHINESE_MONITOR",
+    "periodic_updates_to_planning_chat": false
+  },
+  "contract_files": [
+    {"path": "config/biospur_fusion_v0_c2_main_contract_20260829/README.md", "sha256": "__REQUIRED__"},
+    {"path": "config/biospur_fusion_v0_c2_main_contract_20260829/REVIEW_CHECKLIST_ZH.md", "sha256": "__REQUIRED__"},
+    {"path": "config/biospur_fusion_v0_c2_main_contract_20260829/USER_ANTHROPOMETRY_AMENDMENT_001.json", "sha256": "__REQUIRED__"},
+    {"path": "config/biospur_fusion_v0_c2_main_contract_20260829/GEOMETRY_AND_PARAMETER_CONTRACT.json", "sha256": "__REQUIRED__"},
+    {"path": "config/biospur_fusion_v0_c2_main_contract_20260829/ACTIVE_PARAMETER_REGISTRY.template.json", "sha256": "__REQUIRED__"},
+    {"path": "config/biospur_fusion_v0_c2_main_contract_20260829/MASTER_CONTRACT.md", "sha256": "__REQUIRED__"},
+    {"path": "config/biospur_fusion_v0_c2_main_contract_20260829/COMPLIANCE_MATRIX.json", "sha256": "__REQUIRED__"},
+    {"path": "config/biospur_fusion_v0_c2_main_contract_20260829/STARTUP_PARAMETERS.json", "sha256": "__REQUIRED__"},
+    {"path": "config/biospur_fusion_v0_c2_main_contract_20260829/RUN_START_CONTRACT.template.json", "sha256": "__REQUIRED__"},
+    {"path": "config/biospur_fusion_v0_c2_main_contract_20260829/WORK_PROMPT_EN.md", "sha256": "__REQUIRED__"},
+    {"path": "config/biospur_fusion_v0_c2_main_contract_20260829/MONITOR_PROMPT_ZH.md", "sha256": "__REQUIRED__"},
+    {"path": "config/biospur_fusion_v0_c2_main_contract_20260829/validate_contract.py", "sha256": "__REQUIRED__"}
+  ],
+  "resolved_workspace": {
+    "canonical_path": "/mnt/nrf_ssd/nRF_dev/BioSpur_Fusion/Fusion_Part",
+    "realpath": "__REQUIRED__",
+    "branch_created": false,
+    "worktree_created": false,
+    "checkout_copy_created": false,
+    "raw_copy_created": false,
+    "run_directory": "__REQUIRED_NEW_LOGS_DIRECTORY__"
+  },
+  "resource_gate": {
+    "nrf_ssd_free_bytes": "__REQUIRED_INTEGER__",
+    "root_free_bytes": "__REQUIRED_INTEGER__",
+    "projected_growth_bytes": "__REQUIRED_INTEGER__",
+    "nrf_ssd_at_least_100gb": "__REQUIRED_BOOLEAN__",
+    "root_at_least_40gb": "__REQUIRED_BOOLEAN__",
+    "projected_growth_at_most_5gb": "__REQUIRED_BOOLEAN__"
+  },
+  "scope": {
+    "capture": "C2",
+    "capture_root_realpath": "__REQUIRED__",
+    "all_ten_nodes_exactly_once": "__REQUIRED_BOOLEAN__",
+    "legacy_alias_conflict_count": "__REQUIRED_INTEGER__",
+    "allowed_fields": ["raw_accelerometer", "raw_gyroscope", "timestamp", "boot_epoch", "sequence", "status"],
+    "forbidden_input_count": 0,
+    "external_holdout_authorized": false,
+    "holdout_metadata_or_payload_access_before_fit_freeze": false
+  },
+  "authority_hashes": {
+    "sealed_identity_sha256": "__REQUIRED__",
+    "wear_amendment_sha256": "__REQUIRED__",
+    "frame_amendment_sha256": "__REQUIRED__",
+    "anthropometry_sha256": "__REQUIRED__",
+    "user_anthropometry_amendment_sha256": "__REQUIRED__",
+    "b306_imu_source_sha256": "__REQUIRED__",
+    "jy61p_datasheet_sha256": "__REQUIRED__",
+    "wit_protocol_sha256": "__REQUIRED__",
+    "source_tree_diff_sha256_before_work": "__REQUIRED__"
+  },
+  "verified_input_binding": {
+    "signed_little_endian_raw_axis_order_bound": "__REQUIRED_BOOLEAN__",
+    "b306_axis_permutation_or_sign_flip": false,
+    "acceleration_formula_bound": "__REQUIRED_BOOLEAN__",
+    "gyroscope_formula_bound": "__REQUIRED_BOOLEAN__",
+    "adaptive_accelerometer_range_understood": "__REQUIRED_BOOLEAN__",
+    "gravity_retained": true,
+    "vendor_quaternion_consumed": false,
+    "qmt_wxyz_round_trip_pass": "__REQUIRED_BOOLEAN__"
+  },
+  "preselection": {
+    "fresh_metadata_only_preselection_path": "__REQUIRED__",
+    "fresh_metadata_only_preselection_sha256": "__REQUIRED__",
+    "authorized_action_allowlist_sha256": "__REQUIRED__",
+    "authorized_action_attempts_match_reviewed_expectation": "__REQUIRED_BOOLEAN__",
+    "payload_byte_access_plan_sha256": "__REQUIRED__",
+    "range_plan_constructed_without_holdout_scan": "__REQUIRED_BOOLEAN__"
+  },
+  "architecture_assertions": {
+    "capture_wide_orientation_state": true,
+    "episode_reset_count_expected": 0,
+    "relative_heading_edges": 9,
+    "pelvis_yaw_gauges": 1,
+    "relative_heading_graph_is_rooted_tree": true,
+    "qmt_time_varying_outputs_required": true,
+    "upstream_example_parameters_are_c2_truth": false,
+    "upstream_start_or_stillness_rating_can_create_known_initial_heading": false,
+    "functional_joint_and_frame_inputs_precede_heading": true,
+    "official_parent_child_delta_tree_propagation_primary": true,
+    "bespoke_global_nonlinear_heading_solver_default": false,
+    "full_so3_mounts": 10,
+    "full_3d_joint_connection_vectors": true,
+    "multiple_legal_branches": true,
+    "physical_before_residual": true,
+    "one_persistent_progressive_state": true,
+    "pre_freeze_progress_uses_prequential_not_final_heldout": true,
+    "final_heldout_before_fit_freeze": false,
+    "final_heldout_can_trigger_refit": false,
+    "ideal_human_or_imu_assumed": false,
+    "fresh_batch_equivalence_required": true
+  },
+  "geometry_and_parameter_binding": {
+    "geometry_parameter_contract_sha256": "__REQUIRED__",
+    "anthropometry_raw_observations_exactly_bound": "__REQUIRED_BOOLEAN__",
+    "surface_measurements_called_internal_bone_truth": false,
+    "nonzero_measurement_and_mapping_uncertainty_bound_before_real_fit": "__REQUIRED_BOOLEAN__",
+    "old_006m_hip_vertical_offset_allowed": false,
+    "old_022m_internal_hip_spacing_allowed": false,
+    "old_axial_sensor_offset_model_allowed": false,
+    "active_parameter_registry_path": "__REQUIRED__",
+    "active_parameter_registry_sha256": "__REQUIRED__",
+    "unregistered_real_fit_or_viewer_parameter_count": "__REQUIRED_ZERO__"
+  },
+  "qualification_and_visual": {
+    "independent_synthetic_before_real_fit": true,
+    "all_required_negative_mutations_before_real_fit": true,
+    "identical_renderer_abc_required": true,
+    "viewer_ik_repair_rebase_retarget_allowed": false,
+    "worker_pixel_inspection_required": true,
+    "monitor_pixel_inspection_required": true
+  },
+  "consequence_policy": {
+    "all_predicates_classified_before_run": "__REQUIRED_BOOLEAN__",
+    "ordinary_failure_terminates_task": false,
+    "threshold_relaxation_allowed": false,
+    "action_deletion_allowed": false,
+    "causal_pivot_required": true
+  },
+  "first_payload_access": {
+    "occurred": false,
+    "time_utc": null,
+    "path": null,
+    "byte_interval": null,
+    "precedes_this_seal": false
+  },
+  "contract_validator": {
+    "path": "__REQUIRED__",
+    "sha256": "__REQUIRED__",
+    "exit_code": "__REQUIRED_ZERO__",
+    "result": "__REQUIRED_PASS__"
+  },
+  "seal": {
+    "template_fields_remaining": "__REQUIRED_ZERO__",
+    "immutable_after_creation": true,
+    "append_only_amendments_only": true,
+    "run_authorized_to_open_payload_after_seal": "__REQUIRED_BOOLEAN__"
+  }
+}

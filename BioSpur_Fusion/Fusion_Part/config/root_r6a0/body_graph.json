@@ -1,0 +1,111 @@
+{
+  "schema": "biospur.root_r6a0.body_graph.v1",
+  "root_segment": "pelvis",
+  "conventions": {
+    "world_model_transform": "T_world_model is a static gauge, separate from T_model_root(t)",
+    "rotation": "active local-to-parent SO(3)",
+    "quaternion": "Hamilton scalar-first wxyz when serialized",
+    "translation_units": "m",
+    "time": "B306 common-clock measurement time in seconds; availability time is distinct"
+  },
+  "segments": [
+    "pelvis",
+    "torso",
+    "upper_arm_left",
+    "forearm_left",
+    "upper_arm_right",
+    "forearm_right",
+    "thigh_left",
+    "shank_left",
+    "thigh_right",
+    "shank_right"
+  ],
+  "joints": [
+    {"id": "pelvis_torso", "parent": "pelvis", "child": "torso", "dof_family": "soft_ball", "parent_offset_slot": "joint_parent:pelvis_torso", "child_offset_slot": "joint_child:pelvis_torso", "rest_rotation_slot": "joint_rest:pelvis_torso"},
+    {"id": "shoulder_left", "parent": "torso", "child": "upper_arm_left", "dof_family": "anisotropic_ball", "parent_offset_slot": "joint_parent:shoulder_left", "child_offset_slot": "joint_child:shoulder_left", "rest_rotation_slot": "joint_rest:shoulder_left"},
+    {"id": "elbow_left", "parent": "upper_arm_left", "child": "forearm_left", "dof_family": "soft_hinge", "parent_offset_slot": "joint_parent:elbow_left", "child_offset_slot": "joint_child:elbow_left", "rest_rotation_slot": "joint_rest:elbow_left"},
+    {"id": "shoulder_right", "parent": "torso", "child": "upper_arm_right", "dof_family": "anisotropic_ball", "parent_offset_slot": "joint_parent:shoulder_right", "child_offset_slot": "joint_child:shoulder_right", "rest_rotation_slot": "joint_rest:shoulder_right"},
+    {"id": "elbow_right", "parent": "upper_arm_right", "child": "forearm_right", "dof_family": "soft_hinge", "parent_offset_slot": "joint_parent:elbow_right", "child_offset_slot": "joint_child:elbow_right", "rest_rotation_slot": "joint_rest:elbow_right"},
+    {"id": "hip_left", "parent": "pelvis", "child": "thigh_left", "dof_family": "anisotropic_ball", "parent_offset_slot": "joint_parent:hip_left", "child_offset_slot": "joint_child:hip_left", "rest_rotation_slot": "joint_rest:hip_left"},
+    {"id": "knee_left", "parent": "thigh_left", "child": "shank_left", "dof_family": "soft_hinge", "parent_offset_slot": "joint_parent:knee_left", "child_offset_slot": "joint_child:knee_left", "rest_rotation_slot": "joint_rest:knee_left"},
+    {"id": "hip_right", "parent": "pelvis", "child": "thigh_right", "dof_family": "anisotropic_ball", "parent_offset_slot": "joint_parent:hip_right", "child_offset_slot": "joint_child:hip_right", "rest_rotation_slot": "joint_rest:hip_right"},
+    {"id": "knee_right", "parent": "thigh_right", "child": "shank_right", "dof_family": "soft_hinge", "parent_offset_slot": "joint_parent:knee_right", "child_offset_slot": "joint_child:knee_right", "rest_rotation_slot": "joint_rest:knee_right"}
+  ],
+  "active_identity_mapping": {
+    "source": "config/captures/v47_ten_node_body_calibration_20260814_093601.json",
+    "source_sha256": "39a78d53e9fef4539dce609a9f27f4881a04884da40a73ed80b43b878edd562b",
+    "mapping": {
+      "BSFC2CC": "pelvis",
+      "BSF31CC": "torso",
+      "BSFAA61": "upper_arm_left",
+      "BSFB165": "forearm_left",
+      "BSF1120": "upper_arm_right",
+      "BSFEC35": "forearm_right",
+      "BSF44AD": "thigh_left",
+      "BSF6C53": "shank_left",
+      "BSF3C79": "thigh_right",
+      "BSF8BC4": "shank_right"
+    },
+    "rule": "physical ownership follows this active mapping; inactive display aliases cannot redefine it"
+  },
+  "imu_nodes": [
+    {"id": "BSFC2CC", "segment": "pelvis", "extrinsic_slot": "imu_extrinsic:BSFC2CC", "clock_slot": "time_relationship:BSFC2CC"},
+    {"id": "BSF31CC", "segment": "torso", "extrinsic_slot": "imu_extrinsic:BSF31CC", "clock_slot": "time_relationship:BSF31CC"},
+    {"id": "BSFAA61", "segment": "upper_arm_left", "extrinsic_slot": "imu_extrinsic:BSFAA61", "clock_slot": "time_relationship:BSFAA61"},
+    {"id": "BSFB165", "segment": "forearm_left", "extrinsic_slot": "imu_extrinsic:BSFB165", "clock_slot": "time_relationship:BSFB165"},
+    {"id": "BSF1120", "segment": "upper_arm_right", "extrinsic_slot": "imu_extrinsic:BSF1120", "clock_slot": "time_relationship:BSF1120"},
+    {"id": "BSFEC35", "segment": "forearm_right", "extrinsic_slot": "imu_extrinsic:BSFEC35", "clock_slot": "time_relationship:BSFEC35"},
+    {"id": "BSF44AD", "segment": "thigh_left", "extrinsic_slot": "imu_extrinsic:BSF44AD", "clock_slot": "time_relationship:BSF44AD"},
+    {"id": "BSF6C53", "segment": "shank_left", "extrinsic_slot": "imu_extrinsic:BSF6C53", "clock_slot": "time_relationship:BSF6C53"},
+    {"id": "BSF3C79", "segment": "thigh_right", "extrinsic_slot": "imu_extrinsic:BSF3C79", "clock_slot": "time_relationship:BSF3C79"},
+    {"id": "BSF8BC4", "segment": "shank_right", "extrinsic_slot": "imu_extrinsic:BSF8BC4", "clock_slot": "time_relationship:BSF8BC4"}
+  ],
+  "uwb_tags": [
+    {"id": "BSFC2CC", "segment": "pelvis", "lever_slot": "tag_lever:BSFC2CC"},
+    {"id": "BSF31CC", "segment": "torso", "lever_slot": "tag_lever:BSF31CC"},
+    {"id": "BSFAA61", "segment": "upper_arm_left", "lever_slot": "tag_lever:BSFAA61"},
+    {"id": "BSFB165", "segment": "forearm_left", "lever_slot": "tag_lever:BSFB165"},
+    {"id": "BSF1120", "segment": "upper_arm_right", "lever_slot": "tag_lever:BSF1120"},
+    {"id": "BSFEC35", "segment": "forearm_right", "lever_slot": "tag_lever:BSFEC35"},
+    {"id": "BSF44AD", "segment": "thigh_left", "lever_slot": "tag_lever:BSF44AD"},
+    {"id": "BSF6C53", "segment": "shank_left", "lever_slot": "tag_lever:BSF6C53"},
+    {"id": "BSF3C79", "segment": "thigh_right", "lever_slot": "tag_lever:BSF3C79"},
+    {"id": "BSF8BC4", "segment": "shank_right", "lever_slot": "tag_lever:BSF8BC4"}
+  ],
+  "anchors": [
+    {"id": 0, "position_slot": "anchor_position:0", "delay_slot": "anchor_delay:0"},
+    {"id": 1, "position_slot": "anchor_position:1", "delay_slot": "anchor_delay:1"},
+    {"id": 2, "position_slot": "anchor_position:2", "delay_slot": "anchor_delay:2"},
+    {"id": 3, "position_slot": "anchor_position:3", "delay_slot": "anchor_delay:3"},
+    {"id": 4, "position_slot": "anchor_position:4", "delay_slot": "anchor_delay:4"},
+    {"id": 5, "position_slot": "anchor_position:5", "delay_slot": "anchor_delay:5"},
+    {"id": 6, "position_slot": "anchor_position:6", "delay_slot": "anchor_delay:6"},
+    {"id": 7, "position_slot": "anchor_position:7", "delay_slot": "anchor_delay:7"}
+  ],
+  "derived_anatomical_points": [
+    {"id": "wrist_left", "segment": "forearm_left", "offset_slot": "anatomical_point:wrist_left"},
+    {"id": "wrist_right", "segment": "forearm_right", "offset_slot": "anatomical_point:wrist_right"},
+    {"id": "ankle_left", "segment": "shank_left", "offset_slot": "anatomical_point:ankle_left"},
+    {"id": "ankle_right", "segment": "shank_right", "offset_slot": "anatomical_point:ankle_right"},
+    {"id": "torso_top", "segment": "torso", "offset_slot": "anatomical_point:torso_top"}
+  ],
+  "real_calibration_policy": {
+    "default_status": "FROZEN_UNCERTAIN",
+    "unknown_value": null,
+    "forbid_precise_zero_substitution": true,
+    "fit_from_c1": false,
+    "slots": [
+      "world_model_gauge",
+      "joint_parent:*",
+      "joint_child:*",
+      "joint_rest:*",
+      "bone_length:*",
+      "imu_extrinsic:*",
+      "tag_lever:*",
+      "anatomical_point:*",
+      "anchor_position:*",
+      "anchor_delay:*",
+      "time_relationship:*"
+    ]
+  }
+}

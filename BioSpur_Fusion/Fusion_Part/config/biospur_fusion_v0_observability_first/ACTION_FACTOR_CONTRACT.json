@@ -1,0 +1,291 @@
+{
+  "schema": "biospur-pure-imu-v0-observability-first-action-factor-contract-v1",
+  "objective": {
+    "one_shared_objective_per_capture": true,
+    "complete_episode_phases": [
+      "PRE_REST",
+      "TRANSITION_TO_ACTION",
+      "FORMAL_ACTION_OR_HOLD",
+      "TRANSITION_TO_POST_REST",
+      "POST_REST"
+    ],
+    "maximum_rows_per_action_factor": 80,
+    "row_selection": "deterministic uniform selection within phase and validity stratum",
+    "normalization": "each action/factor residual block divided by sqrt(valid selected scalar rows)",
+    "robust_loss": "Huber per whitened factor block",
+    "duration_or_frame_count_dominates": false
+  },
+  "covariance": {
+    "static_direction": "VQF attitude covariance plus robust within-rest gravity dispersion plus soft human-pose mismatch",
+    "dynamic_relative_rate": "both node gyro covariances plus VQF heading uncertainty and robust off-axis human-motion scale",
+    "bilateral": "left/right block covariance estimated separately; no forced equal amplitude",
+    "return": "pre/post relative-orientation covariance plus accumulated gyro-bias uncertainty",
+    "protocol_pose": "separate broad covariance for initial still and T-pose",
+    "parameter_bounds_are_information": false
+  },
+  "residual_families": {
+    "STATIC_LATENT_DIRECTION": {
+      "uses": "time-resolved stable rows in PRE_REST, FORMAL_ACTION_OR_HOLD when static, and POST_REST",
+      "constrains": ["mounting", "effective_relative_heading", "latent_pose"],
+      "rank_claim": "tilt and cross-segment pose binding only; gravity alone never claims horizontal azimuth"
+    },
+    "RELATIVE_RATE_AXIS_OR_PLANE": {
+      "uses": "time-resolved parent-child relative angular velocity across the complete active transition and action",
+      "constrains": ["effective_relative_heading", "mounting", "functional_axes_or_frame"],
+      "rank_claim": "only non-collinear, sufficiently excited measured motion contributes heading information"
+    },
+    "ARTICULATED_CONNECTIVITY": {
+      "uses": "shared parent-child kinematic structure at every eligible time row",
+      "constrains": ["mounting", "effective_relative_heading", "joint_zero", "latent_pose"],
+      "rank_claim": "soft physical joint structure, never an exact pose template"
+    },
+    "BILATERAL_STRUCTURE": {
+      "uses": "simultaneous left/right motion directions and return timing with independent amplitudes",
+      "constrains": ["relative_heading", "functional_axis_sign", "left_right_semantics"],
+      "rank_claim": "mirrored direction/sign evidence only when both sides are valid"
+    },
+    "RETURN_CONSISTENCY": {
+      "uses": "relative pre-rest to post-rest orientation and gravity closure",
+      "constrains": ["bias_diagnostics", "episode_eligibility"],
+      "rank_claim": "drift validation only; endpoint closure never creates heading rank"
+    },
+    "WHOLE_CAR_COMMON_RATE": {
+      "uses": "simultaneous measured angular velocities from pelvis and every other segment during an independently eligible supported/braced rigid-body episode",
+      "constrains": ["nine_effective_relative_headings"],
+      "rank_claim": "measurement-only equality of candidate-corrected rates; eligibility requires two measured non-collinear common-rate directions and rejects articulation, timing mismatch, and near-zero excitation; no navigation yaw, pose, truth axis, or motion plane enters the residual"
+    },
+    "JOINT_CENTER_SPECIFIC_FORCE_CLOSURE": {
+      "uses": "synchronized parent/child tri-axial accelerometer, angular velocity, and differentiated angular velocity rows during the already declared articulated episodes",
+      "constrains": ["mounting", "effective_relative_heading", "capture_shared_sensor_to_joint_lever_arm_nuisance"],
+      "equation": "R_p f_p + alpha_p cross R_p r_p + omega_p cross (omega_p cross R_p r_p) equals the corresponding child expression at their shared joint center",
+      "gravity_contract": "both accelerometers contain the same navigation gravity term, which cancels only in the parent-child joint-center difference",
+      "covariance": "explicit two-node accelerometer noise, gyro-differentiation noise scaled by lever uncertainty, common-time timing times jerk, and joint-center model covariance; each action/joint block is divided by sqrt(selected rows) and uses the declared robust loss",
+      "rank_claim": "only time-resolved six-axis measurements enter measurement-only rank; lever-arm bounds, lever priors, truth lever arms, and zero-lever assumptions are excluded"
+    },
+    "SOFT_INITIAL_POSE": {
+      "uses": "initial-still latent pose",
+      "constrains": ["latent_pose", "capture_defined_joint_zero"],
+      "rank_claim": "reported separately as protocol-conditioned information"
+    },
+    "SOFT_TPOSE": {
+      "uses": "T-pose latent pose independent of initial still",
+      "constrains": ["latent_pose", "bilateral_lateral_semantics", "extension"],
+      "rank_claim": "reported separately as protocol-conditioned information; exact textbook coordinates forbidden"
+    }
+  },
+  "canonical_action_roles": {
+    "initial_still": {
+      "factors": ["STATIC_LATENT_DIRECTION", "ARTICULATED_CONNECTIVITY", "SOFT_INITIAL_POSE", "RETURN_CONSISTENCY"],
+      "primary_blocks": ["mounting", "latent_initial_pose", "joint_zero"]
+    },
+    "t_pose": {
+      "factors": ["STATIC_LATENT_DIRECTION", "ARTICULATED_CONNECTIVITY", "SOFT_TPOSE", "RETURN_CONSISTENCY"],
+      "primary_blocks": ["mounting", "effective_relative_heading", "latent_t_pose", "left_right_semantics"]
+    },
+    "shoulder_left_right": {
+      "factors": ["RELATIVE_RATE_AXIS_OR_PLANE", "ARTICULATED_CONNECTIVITY", "BILATERAL_STRUCTURE", "RETURN_CONSISTENCY"],
+      "primary_blocks": ["torso_and_upper_arm_headings", "shoulder_axes"]
+    },
+    "elbow_left_right": {
+      "factors": ["RELATIVE_RATE_AXIS_OR_PLANE", "ARTICULATED_CONNECTIVITY", "RETURN_CONSISTENCY"],
+      "primary_blocks": ["upper_arm_and_forearm_headings", "elbow_axes", "elbow_zero"]
+    },
+    "hip_left_right": {
+      "factors": ["RELATIVE_RATE_AXIS_OR_PLANE", "ARTICULATED_CONNECTIVITY", "BILATERAL_STRUCTURE", "RETURN_CONSISTENCY"],
+      "primary_blocks": ["pelvis_and_thigh_headings", "hip_axes", "hip_zero"]
+    },
+    "knee_left_right": {
+      "factors": ["RELATIVE_RATE_AXIS_OR_PLANE", "ARTICULATED_CONNECTIVITY", "RETURN_CONSISTENCY"],
+      "primary_blocks": ["thigh_and_shank_headings", "knee_axes", "knee_zero"]
+    },
+    "squat": {
+      "factors": ["RELATIVE_RATE_AXIS_OR_PLANE", "ARTICULATED_CONNECTIVITY", "BILATERAL_STRUCTURE", "RETURN_CONSISTENCY"],
+      "primary_blocks": ["bilateral_lower_chain_headings", "hip_axes", "knee_axes", "lower_joint_zeros"]
+    },
+    "trunk_noncollinear": {
+      "factors": ["RELATIVE_RATE_AXIS_OR_PLANE", "ARTICULATED_CONNECTIVITY", "RETURN_CONSISTENCY"],
+      "primary_blocks": ["torso_heading", "right_handed_trunk_functional_frame", "trunk_zero"],
+      "eligibility": "at least two measured non-collinear trunk motion directions; one plane normal is insufficient for a three-coordinate frame"
+    }
+  },
+  "capture_bindings": {
+    "CAPTURE1": {
+      "initial_still": ["initial_still"],
+      "t_pose": ["t_pose"],
+      "shoulder_left_right": ["arms"],
+      "elbow_left_right": ["left_elbow", "right_elbow"],
+      "hip_left_right": ["left_knee", "right_knee"],
+      "knee_left_right": ["left_heel", "right_heel"],
+      "squat": ["squats"],
+      "trunk_noncollinear": ["trunk"],
+      "eligibility_note": "complete early rest-action-rest recovery must be proved; late different stable poses are forbidden substitutes"
+    },
+    "CAPTURE2": {
+      "initial_still": ["00_initial_still"],
+      "t_pose": ["02_t_pose"],
+      "shoulder_left_right": ["04_shoulder_left", "05_shoulder_right"],
+      "elbow_left_right": ["06_elbow_left", "07_elbow_right"],
+      "hip_left_right": ["08_hip_left", "09_hip_right"],
+      "knee_left_right": ["10_knee_left_seated", "11_knee_right_seated", "18_heel_to_butt_left", "19_heel_to_butt_right"],
+      "squat": ["16_squat"],
+      "trunk_noncollinear": ["14_trunk_flex_extend", "15_trunk_axial_rotation"],
+      "additional_connectivity": ["03_pelvis_hula_circle", "12_heel_raise_left", "13_heel_raise_right"],
+      "final_drift_audit": ["17_final_still"]
+    }
+  },
+  "per_capture_action_parameter_map": {
+    "CAPTURE1": {
+      "initial_still": {"role": "initial_still", "residuals": ["STATIC_LATENT_DIRECTION", "ARTICULATED_CONNECTIVITY", "SOFT_INITIAL_POSE", "RETURN_CONSISTENCY"], "parameters": ["mounting", "latent_initial_pose", "joint_zero"]},
+      "t_pose": {"role": "t_pose", "residuals": ["STATIC_LATENT_DIRECTION", "ARTICULATED_CONNECTIVITY", "SOFT_TPOSE", "RETURN_CONSISTENCY"], "parameters": ["mounting", "effective_relative_heading", "latent_t_pose", "left_right_semantics"]},
+      "arms": {"role": "shoulder_left_right", "residuals": ["RELATIVE_RATE_AXIS_OR_PLANE", "ARTICULATED_CONNECTIVITY", "BILATERAL_STRUCTURE", "RETURN_CONSISTENCY"], "parameters": ["torso_upper_arm_headings", "shoulder_axes"]},
+      "left_elbow": {"role": "elbow_left", "residuals": ["RELATIVE_RATE_AXIS_OR_PLANE", "ARTICULATED_CONNECTIVITY", "RETURN_CONSISTENCY"], "parameters": ["left_upper_arm_forearm_headings", "left_elbow_axis", "left_elbow_zero"]},
+      "right_elbow": {"role": "elbow_right", "residuals": ["RELATIVE_RATE_AXIS_OR_PLANE", "ARTICULATED_CONNECTIVITY", "RETURN_CONSISTENCY"], "parameters": ["right_upper_arm_forearm_headings", "right_elbow_axis", "right_elbow_zero"]},
+      "left_knee": {"role": "hip_left", "residuals": ["RELATIVE_RATE_AXIS_OR_PLANE", "ARTICULATED_CONNECTIVITY", "RETURN_CONSISTENCY"], "parameters": ["pelvis_left_thigh_heading", "left_hip_axis", "left_hip_zero"]},
+      "right_knee": {"role": "hip_right", "residuals": ["RELATIVE_RATE_AXIS_OR_PLANE", "ARTICULATED_CONNECTIVITY", "RETURN_CONSISTENCY"], "parameters": ["pelvis_right_thigh_heading", "right_hip_axis", "right_hip_zero"]},
+      "left_heel": {"role": "knee_left", "residuals": ["RELATIVE_RATE_AXIS_OR_PLANE", "ARTICULATED_CONNECTIVITY", "RETURN_CONSISTENCY"], "parameters": ["left_thigh_shank_headings", "left_knee_axis", "left_knee_zero"]},
+      "right_heel": {"role": "knee_right", "residuals": ["RELATIVE_RATE_AXIS_OR_PLANE", "ARTICULATED_CONNECTIVITY", "RETURN_CONSISTENCY"], "parameters": ["right_thigh_shank_headings", "right_knee_axis", "right_knee_zero"]},
+      "squats": {"role": "squat", "residuals": ["RELATIVE_RATE_AXIS_OR_PLANE", "ARTICULATED_CONNECTIVITY", "BILATERAL_STRUCTURE", "RETURN_CONSISTENCY"], "parameters": ["bilateral_lower_chain_headings", "hip_axes", "knee_axes", "lower_joint_zeros"]},
+      "trunk": {"role": "trunk_noncollinear", "residuals": ["RELATIVE_RATE_AXIS_OR_PLANE", "ARTICULATED_CONNECTIVITY", "RETURN_CONSISTENCY"], "parameters": ["torso_heading", "trunk_functional_frame", "trunk_zero"]},
+      "final_still": {"role": "final_drift_audit", "residuals": ["STATIC_LATENT_DIRECTION", "RETURN_CONSISTENCY"], "parameters": ["none_publishable_drift_validation_only"]}
+    },
+    "CAPTURE2": {
+      "00_initial_still": {"role": "initial_still", "residuals": ["STATIC_LATENT_DIRECTION", "ARTICULATED_CONNECTIVITY", "SOFT_INITIAL_POSE", "RETURN_CONSISTENCY"], "parameters": ["mounting", "latent_initial_pose", "joint_zero"]},
+      "02_t_pose": {"role": "t_pose", "residuals": ["STATIC_LATENT_DIRECTION", "ARTICULATED_CONNECTIVITY", "SOFT_TPOSE", "RETURN_CONSISTENCY"], "parameters": ["mounting", "effective_relative_heading", "latent_t_pose", "left_right_semantics"]},
+      "03_pelvis_hula_circle": {"role": "root_multiaxis_connectivity", "residuals": ["ARTICULATED_CONNECTIVITY", "RETURN_CONSISTENCY"], "parameters": ["mounting_and_heading_only_when_relative_chain_motion_is_measured", "otherwise_drift_diagnostic"]},
+      "04_shoulder_left": {"role": "shoulder_left", "residuals": ["RELATIVE_RATE_AXIS_OR_PLANE", "ARTICULATED_CONNECTIVITY", "RETURN_CONSISTENCY"], "parameters": ["torso_left_upper_arm_headings", "left_shoulder_axis"]},
+      "05_shoulder_right": {"role": "shoulder_right", "residuals": ["RELATIVE_RATE_AXIS_OR_PLANE", "ARTICULATED_CONNECTIVITY", "RETURN_CONSISTENCY"], "parameters": ["torso_right_upper_arm_headings", "right_shoulder_axis"]},
+      "06_elbow_left": {"role": "elbow_left", "residuals": ["RELATIVE_RATE_AXIS_OR_PLANE", "ARTICULATED_CONNECTIVITY", "RETURN_CONSISTENCY"], "parameters": ["left_upper_arm_forearm_headings", "left_elbow_axis", "left_elbow_zero"]},
+      "07_elbow_right": {"role": "elbow_right", "residuals": ["RELATIVE_RATE_AXIS_OR_PLANE", "ARTICULATED_CONNECTIVITY", "RETURN_CONSISTENCY"], "parameters": ["right_upper_arm_forearm_headings", "right_elbow_axis", "right_elbow_zero"]},
+      "08_hip_left": {"role": "hip_left", "residuals": ["RELATIVE_RATE_AXIS_OR_PLANE", "ARTICULATED_CONNECTIVITY", "RETURN_CONSISTENCY"], "parameters": ["pelvis_left_thigh_heading", "left_hip_axis", "left_hip_zero"]},
+      "09_hip_right": {"role": "hip_right", "residuals": ["RELATIVE_RATE_AXIS_OR_PLANE", "ARTICULATED_CONNECTIVITY", "RETURN_CONSISTENCY"], "parameters": ["pelvis_right_thigh_heading", "right_hip_axis", "right_hip_zero"]},
+      "10_knee_left_seated": {"role": "knee_left", "residuals": ["RELATIVE_RATE_AXIS_OR_PLANE", "ARTICULATED_CONNECTIVITY", "RETURN_CONSISTENCY"], "parameters": ["left_thigh_shank_headings", "left_knee_axis", "left_knee_zero"]},
+      "11_knee_right_seated": {"role": "knee_right", "residuals": ["RELATIVE_RATE_AXIS_OR_PLANE", "ARTICULATED_CONNECTIVITY", "RETURN_CONSISTENCY"], "parameters": ["right_thigh_shank_headings", "right_knee_axis", "right_knee_zero"]},
+      "12_heel_raise_left": {"role": "distal_drift_diagnostic", "residuals": ["RETURN_CONSISTENCY"], "parameters": ["none_publishable_without_instrumented_foot"]},
+      "13_heel_raise_right": {"role": "distal_drift_diagnostic", "residuals": ["RETURN_CONSISTENCY"], "parameters": ["none_publishable_without_instrumented_foot"]},
+      "14_trunk_flex_extend": {"role": "trunk_flexion", "residuals": ["RELATIVE_RATE_AXIS_OR_PLANE", "ARTICULATED_CONNECTIVITY", "RETURN_CONSISTENCY"], "parameters": ["torso_heading", "trunk_functional_frame", "trunk_zero"]},
+      "15_trunk_axial_rotation": {"role": "trunk_axial", "residuals": ["RELATIVE_RATE_AXIS_OR_PLANE", "ARTICULATED_CONNECTIVITY", "RETURN_CONSISTENCY"], "parameters": ["torso_heading", "trunk_functional_frame", "trunk_zero"]},
+      "16_squat": {"role": "squat", "residuals": ["RELATIVE_RATE_AXIS_OR_PLANE", "ARTICULATED_CONNECTIVITY", "BILATERAL_STRUCTURE", "RETURN_CONSISTENCY"], "parameters": ["bilateral_lower_chain_headings", "hip_axes", "knee_axes", "lower_joint_zeros"]},
+      "17_final_still": {"role": "final_drift_audit", "residuals": ["STATIC_LATENT_DIRECTION", "RETURN_CONSISTENCY"], "parameters": ["none_publishable_drift_validation_only"]},
+      "18_heel_to_butt_left": {"role": "knee_left_high_flexion", "residuals": ["RELATIVE_RATE_AXIS_OR_PLANE", "ARTICULATED_CONNECTIVITY", "RETURN_CONSISTENCY"], "parameters": ["left_thigh_shank_headings", "left_knee_axis", "left_knee_zero"]},
+      "19_heel_to_butt_right": {"role": "knee_right_high_flexion", "residuals": ["RELATIVE_RATE_AXIS_OR_PLANE", "ARTICULATED_CONNECTIVITY", "RETURN_CONSISTENCY"], "parameters": ["right_thigh_shank_headings", "right_knee_axis", "right_knee_zero"]}
+    }
+  },
+  "b3_minimal_motion_qualification": {
+    "synthetic_only_until_milestone_b3_passes": true,
+    "episodes": {
+      "b3_bilateral_hip_circumduction_two_axis": {
+        "required_phases": ["PRE_REST", "TRANSITION_TO_ACTION", "FORMAL_ACTION", "TRANSITION_TO_POST_REST", "POST_REST"],
+        "same_rest_required": true,
+        "measured_factors": ["TWO_AXIS_HIP_CIRCUMDUCTION_PLANE", "BILATERAL_SAGITTAL_REFLECTION"],
+        "eligibility": "pelvis-to-left-thigh and pelvis-to-right-thigh relative angular-velocity clouds each contain two non-collinear excited directions",
+        "distinct_from_capture2_label": "03_pelvis_hula_circle does not by label prove a fixed pelvis, bilateral pelvis-to-thigh relative motion, or two-axis thigh excitation"
+      },
+      "b3_left_seated_knee_flexion_tibial_axial": {
+        "required_phases": ["PRE_REST", "TRANSITION_TO_ACTION", "FORMAL_ACTION", "TRANSITION_TO_POST_REST", "POST_REST"],
+        "same_rest_required": true,
+        "measured_factors": ["KNEE_FUNCTIONAL_FLEXION_AXIS", "TIBIAL_LONGITUDINAL_AXIAL_ROTATION"],
+        "eligibility": "left thigh remains stationary while the shank supplies separate flexion and tibial-axial phases",
+        "distinct_from_capture2_label": "10_knee_left_seated does not by label prove stationary-thigh eligibility or measured tibial axial rotation"
+      },
+      "b3_right_seated_knee_flexion_tibial_axial": {
+        "required_phases": ["PRE_REST", "TRANSITION_TO_ACTION", "FORMAL_ACTION", "TRANSITION_TO_POST_REST", "POST_REST"],
+        "same_rest_required": true,
+        "measured_factors": ["KNEE_FUNCTIONAL_FLEXION_AXIS", "TIBIAL_LONGITUDINAL_AXIAL_ROTATION"],
+        "eligibility": "right thigh remains stationary while the shank supplies separate flexion and tibial-axial phases",
+        "distinct_from_capture2_label": "11_knee_right_seated does not by label prove stationary-thigh eligibility or measured tibial axial rotation"
+      },
+      "b3_trunk_labelled_left_right_lateral_bend": {
+        "required_phases": ["PRE_REST", "TRANSITION_TO_ACTION", "FORMAL_ACTION", "TRANSITION_TO_POST_REST", "POST_REST"],
+        "same_rest_required": true,
+        "measured_factors": ["TRUNK_LATERAL_BEND_AXIS", "LABELLED_LEFT_RIGHT_DIRECTION"],
+        "eligibility": "both labelled left and right excursions plus their returns have measured activity",
+        "distinct_from_capture2_label": "new direction absent from 14_trunk_flex_extend and 15_trunk_axial_rotation; labels orient the flex/lateral handedness"
+      }
+    },
+    "rank_claim": "only measured time-resolved non-collinear and labelled-direction factors enter data lineage; rest closure remains an eligibility/drift gate and adds no heading rank"
+  },
+  "b4_en_bloc_qualification": {
+    "synthetic_only_until_milestone_b4_passes": true,
+    "episode": "b4_supported_braced_en_bloc_two_axis",
+    "required_phases": [
+      "PRE_REST",
+      "TRANSITION_TO_ACTION",
+      "COMMON_ROTATION_AXIS_A",
+      "COMMON_ROTATION_AXIS_B",
+      "TRANSITION_TO_POST_REST",
+      "POST_REST"
+    ],
+    "same_rest_required": true,
+    "measured_factor": "WHOLE_CAR_COMMON_RATE",
+    "equation": "for each non-pelvis segment and each eligible phase: activity_weight*(omega_segment_nav(candidate)-omega_pelvis_nav(candidate))",
+    "eligibility": {
+      "two_noncollinear_measured_common_rate_directions": true,
+      "all_ten_segments_rigid_relative_to_pelvis": true,
+      "all_ten_segments_time_aligned_and_valid": true,
+      "near_zero_rate_rows_cannot_create_rank": true,
+      "complete_return_to_same_rest": true
+    },
+    "forbidden_information": [
+      "navigation_yaw",
+      "textbook_pose",
+      "exact_motion_plane",
+      "synthetic_truth_axis",
+      "per_action_heading_refit",
+      "parameter_only_prior_rank"
+    ],
+    "required_negative_controls": [
+      "segment_articulation",
+      "insufficient_second_axis",
+      "timing_mismatch",
+      "noisy_near_zero_rates"
+    ],
+    "rank_claim": "only candidate-corrected simultaneous measured angular-velocity equality enters measurement lineage; commanded axes and eligibility metadata never enter the objective"
+  },
+  "b5_joint_center_specific_force_qualification": {
+    "synthetic_only_until_milestone_b5_passes": true,
+    "new_episode_required": false,
+    "eligible_actions": [
+      "arms",
+      "left_elbow",
+      "right_elbow_attempt2",
+      "left_knee",
+      "right_knee",
+      "left_heel",
+      "right_heel",
+      "squats",
+      "trunk",
+      "b3_bilateral_hip_circumduction_two_axis",
+      "b3_left_seated_knee_flexion_tibial_axial",
+      "b3_right_seated_knee_flexion_tibial_axial",
+      "b3_trunk_labelled_left_right_lateral_bend"
+    ],
+    "profile_state": "unchanged 55-coordinate publishable state with nine pelvis-relative headings and one legal common global yaw gauge",
+    "nuisance_state": "two capture-shared three-coordinate board-frame sensor-to-joint lever arms for pelvis-torso and each of the eight anatomical joints",
+    "physical_bounds_are_information": false,
+    "lever_priors_are_information": false,
+    "per_action_balancing": "each action/joint residual block is normalized by sqrt(selected row count); duration cannot dominate",
+    "required_negative_controls": [
+      "timing_offset",
+      "low_dynamics",
+      "single_axis_lever_arm_degeneracy",
+      "articulation_eligibility_failure",
+      "noise_amplification"
+    ],
+    "forbidden_information": [
+      "navigation yaw",
+      "textbook pose",
+      "exact motion plane",
+      "truth lever arm",
+      "fixed zero lever arm",
+      "lever bound or prior rank",
+      "per-action profile or lever arm"
+    ]
+  },
+  "fail_closed": {
+    "missing_complete_episode": "CALIBRATION_EPISODE_INCOMPLETE",
+    "missing_noncollinear_excitation": "FAIL_ACTION_EXCITATION",
+    "measurement_profiled_rank_deficient": "FAIL_OBSERVABILITY",
+    "product_distinct_sign_or_handedness_tie": "FAIL_AMBIGUOUS_SIGN_OR_HANDEDNESS",
+    "direct_fk_reference_failure": "FAIL_DIRECT_FK_REFERENCE_GATE"
+  }
+}

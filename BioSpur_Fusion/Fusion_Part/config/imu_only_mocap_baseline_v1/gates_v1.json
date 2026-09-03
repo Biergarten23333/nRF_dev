@@ -1,0 +1,123 @@
+{
+  "schema": "biospur-imu-only-mocap-baseline-gates-v1",
+  "product": "IMU_ONLY_MOCAP_BASELINE_V1",
+  "declared_before_real_capture_execution": true,
+  "phase": "A_IMU_ONLY",
+  "allowed_npz_keys": [
+    "action_windows",
+    "imu_BSF1120", "imu_BSF31CC", "imu_BSF3C79", "imu_BSF44AD",
+    "imu_BSF6C53", "imu_BSF8BC4", "imu_BSFAA61", "imu_BSFB165",
+    "imu_BSFC2CC", "imu_BSFEC35"
+  ],
+  "forbidden_modalities": ["UWB", "UWB_TAG_T4", "UWB_COVARIANCE", "ANCHOR_GEOMETRY"],
+  "sealed": {"walk": true, "final_still": true, "operator_measurements": true},
+  "template": {
+    "name": "GENERIC_ADULT_PROXY_V1",
+    "path": "Fusion_Part/config/generic_template_motion_demo_v1/GENERIC_ADULT_PROXY_V1.json",
+    "sha256": "892fa156db60f19120e45ea9bc537361e5ef4f73518d1753aa38fd73d389fce4",
+    "dimensions_immutable": true
+  },
+  "node_to_segment": {
+    "BSF31CC": "torso", "BSFC2CC": "pelvis",
+    "BSFAA61": "upper_arm_L", "BSF1120": "upper_arm_R",
+    "BSFB165": "forearm_L", "BSFEC35": "forearm_R",
+    "BSF44AD": "thigh_L", "BSF3C79": "thigh_R",
+    "BSF6C53": "shank_L", "BSF8BC4": "shank_R"
+  },
+  "smoke_actions": ["initial_still_attempt2", "t_pose", "arms", "squats"],
+  "functional_actions": ["left_elbow", "right_elbow_attempt2", "left_knee", "right_knee"],
+  "q2_frontend": {
+    "name": "Q2_IMU_MOCAP_ATTITUDE",
+    "gyro_lsb_per_dps": 16.384,
+    "accel_lsb_per_g": 2048.0,
+    "gravity_mps2": 9.80665,
+    "stationary_gyro_limit_dps": 5.0,
+    "stationary_accel_norm_deviation_g": 0.12,
+    "stationary_filtered_jerk_limit_mps3": 8.0,
+    "stationary_filter_time_constant_s": 0.10,
+    "multi_node_agreement_fraction": 0.70,
+    "agreement_bin_s": 0.05,
+    "minimum_stationary_duration_s": 0.40,
+    "minimum_initial_still_eligible_fraction": 0.70,
+    "maximum_propagated_gap_s": 0.05,
+    "gyro_noise_sigma_rad_s_sqrt_hz": 0.003,
+    "gyro_bias_rw_sigma_rad_s2_sqrt_hz": 0.00005,
+    "initial_tilt_sigma_deg": 2.0,
+    "yaw_sigma_deg": 180.0,
+    "stationary_gravity_correction_gain": 0.08,
+    "dynamic_gravity_correction_gain": 0.01,
+    "dynamic_gravity_gyro_limit_dps": 35.0,
+    "dynamic_gravity_accel_norm_deviation_g": 0.08,
+    "dynamic_gravity_jerk_limit_mps3": 5.0,
+    "stationary_bias_update_gain": 0.002
+  },
+  "calibration": {
+    "minimum_tpose_stable_duration_s": 3.0,
+    "tpose_subset_axis_repeatability_limit_deg": 5.0,
+    "functional_axis_minimum_rms_rad_s": 0.20,
+    "functional_axis_minimum_eigen_ratio": 2.0
+  },
+  "pose_reference": {
+    "schema": "biospur-imu-only-dual-static-pose-reference-v1",
+    "declared_before_corrected_replay": true,
+    "initial_still_and_tpose_are_distinct_constraints": true,
+    "pool_static_poses": false,
+    "per_sensor_yaw_search_step_deg": 0.05,
+    "static_direction_tolerance_deg": 20.0,
+    "elbow_extension_consistency_tolerance_deg": 20.0,
+    "action_boundary_maximum_segment_step_deg": 5.0,
+    "action_boundary_maximum_root_step_m": 0.02,
+    "arms_render_lead_in_s": 3.0
+  },
+  "temporal_estimator": {
+    "state_rate_hz": 100.0,
+    "orientation_innovation_gain": 0.18,
+    "angular_velocity_innovation_gain": 0.04,
+    "angular_velocity_damping": 0.995,
+    "stationary_angular_velocity_gain": 0.25,
+    "angular_acceleration_limit_rad_s2": 60.0,
+    "hinge_axis_regularization_gain": 0.05,
+    "root_contact_position_gain": 0.35,
+    "root_velocity_gain": 0.20,
+    "root_velocity_damping": 0.90,
+    "maximum_adjacent_segment_rotation_deg": 60.0,
+    "broad_elbow_angle_deg": [0.0, 175.0],
+    "broad_knee_angle_deg": [0.0, 175.0],
+    "broad_ball_joint_cone_deg": 175.0
+  },
+  "stability_gates": {
+    "initial_still_minimum_continuous_stationary_s": 5.0,
+    "initial_still_root_p95_displacement_m": 0.020,
+    "initial_still_joint_relative_p95_displacement_m": 0.015,
+    "initial_still_segment_axis_p95_deviation_deg": 2.0,
+    "tpose_joint_relative_p95_displacement_m": 0.020,
+    "tpose_segment_axis_p95_deviation_deg": 3.0,
+    "tpose_joint_velocity_p95_mps": 0.15,
+    "maximum_bone_length_error_m": 1e-9,
+    "arms_inactive_leg_joint_p95_m": 0.030,
+    "minimum_action_to_rest_signal_jitter_ratio": 3.0
+  },
+  "motion_gates": {
+    "arms_minimum_active_segment_range_deg": 20.0,
+    "squats_minimum_knee_flexion_change_deg": 15.0,
+    "squats_minimum_pelvis_lowering_m": 0.080,
+    "maximum_tail_angular_speed_p95_rad_s": 0.30
+  },
+  "rendering": {
+    "width_px": 1280,
+    "height_px": 720,
+    "fps": 30,
+    "per_action_duration_s": 8.0,
+    "combined_duration_s": 20.0,
+    "skeleton_frame_height_fraction_minimum": 0.65,
+    "mp4_codec": "libx264",
+    "pixel_format": "yuv420p",
+    "camera_elevation_deg": 12.0,
+    "camera_azimuth_deg": -70.0,
+    "watermark": "IMU-only non-clinical motion preview. Generic body dimensions. Absolute position, heading and clinical joint angles are not validated."
+  },
+  "top_level_verdicts": [
+    "IMU_ONLY_MOCAP_BASELINE_SMOKE_FAIL",
+    "NUMERICAL_IMU_ONLY_SMOKE_PASS_OPERATOR_REVIEW_REQUIRED"
+  ]
+}

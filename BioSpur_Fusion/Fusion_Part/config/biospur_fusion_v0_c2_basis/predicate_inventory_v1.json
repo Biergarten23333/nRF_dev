@@ -1,0 +1,357 @@
+{
+  "schema": "biospur-c2-exact-vs-stochastic-predicate-inventory-v1",
+  "created_date": "2026-08-29",
+  "scope": "CAPTURE2_ONLY_TEN_SENSOR_RAW_ACCELEROMETER_GYROSCOPE",
+  "acceptance_rule": "Only discrete identity, topology, hash, shape, protocol, partition, and budget invariants may fail by exact comparison. Human, sensor, mounting, kinematic, observability, prediction, and posture evidence must carry uncertainty or a broad nontradeable manifold gate and must be mutation-qualified.",
+  "discrete_invariants": [
+    {
+      "id": "D01",
+      "predicate": "Capture scope is C2 only and forbidden capture/path tokens are absent",
+      "source": "c2_basis/contracts.py:CAPTURE_ID,FORBIDDEN_PATH_TOKENS,assert_c2_path",
+      "units": "categorical path identity",
+      "uncertainty_or_covariance": "none; metadata identity",
+      "correlation": "not applicable",
+      "owner": "c2_basis.contracts",
+      "exact_fail_closed": true
+    },
+    {
+      "id": "D02",
+      "predicate": "Exactly ten sealed hardware IDs map to the immutable C2 body segments; legacy aliases cannot override",
+      "source": "c2_basis/contracts.py:C2_IDENTITY,load_c2_authority",
+      "units": "categorical mapping",
+      "uncertainty_or_covariance": "none; sealed and append-only metadata",
+      "correlation": "not applicable",
+      "owner": "c2_basis.contracts",
+      "exact_fail_closed": true
+    },
+    {
+      "id": "D03",
+      "predicate": "Direct input fields are acc_raw, gyro_raw, global_time_ns, status, boot_epoch and forbidden inputs remain disabled",
+      "source": "c2_basis/validation.py:validate_basis_contract",
+      "units": "field names and booleans",
+      "uncertainty_or_covariance": "none; protocol contract",
+      "correlation": "not applicable",
+      "owner": "c2_basis.validation",
+      "exact_fail_closed": true
+    },
+    {
+      "id": "D04",
+      "predicate": "Nineteen complete episodes are retained once in immutable chronological order with exact attempt semantics",
+      "source": "c2_basis/contracts.py:EPISODE_SELECTION; progressive.py:ProgressiveProfile",
+      "units": "ordered categorical sequence",
+      "uncertainty_or_covariance": "none for membership/order; signal-defined phase boundaries are S02",
+      "correlation": "episodes are cumulative and may not be treated as independent profiles",
+      "owner": "c2_basis.contracts and c2_basis.progressive",
+      "exact_fail_closed": true
+    },
+    {
+      "id": "D05",
+      "predicate": "Fresh preselection binds immutable authority, wear amendment, frame semantics, anthropometry, code/config, and prior synthetic evidence hashes before payload access",
+      "source": "seal_c2_basis_preselection.py; c2_basis/real_data.py:verify_fresh_seal",
+      "units": "SHA-256 bytes",
+      "uncertainty_or_covariance": "none; cryptographic identity",
+      "correlation": "not applicable",
+      "owner": "preselection lifecycle",
+      "exact_fail_closed": true
+    },
+    {
+      "id": "D06",
+      "predicate": "The kinematic tree contains exactly nine parent-child edges and one pelvis/root yaw gauge",
+      "source": "raw6_heading.py:EDGES; c2_basis/model.py:HEADING_SEGMENTS",
+      "units": "graph topology",
+      "uncertainty_or_covariance": "none for edge identity/gauge; edge observations are stochastic",
+      "correlation": "shared nodes induce graph correlation handled by synchronization",
+      "owner": "orientation graph",
+      "exact_fail_closed": true
+    },
+    {
+      "id": "D07",
+      "predicate": "Arrays are finite, have declared shapes, timestamps are monotone, QMT indices are unique/in-range, and rotations remain proper matrices",
+      "source": "raw_frontend.py; raw6_heading.py:selected_indices; mounts.py; real_data.py",
+      "units": "shape, index, timestamp nanoseconds, determinant",
+      "uncertainty_or_covariance": "numerical tolerance only for floating manifold representation; not a human observation",
+      "correlation": "not applicable",
+      "owner": "data/orientation boundary validation",
+      "exact_fail_closed": true
+    },
+    {
+      "id": "D08",
+      "predicate": "Stage iteration/wall limits, bounded preprocessing deadlines, and worker counts cannot be relaxed after failure",
+      "source": "c2_basis/staging.py; c2_basis/validation.py; config_v1.json:stages,bounded_pipeline",
+      "units": "iterations, seconds, workers",
+      "uncertainty_or_covariance": "none; preregistered execution contract",
+      "correlation": "shared wall deadline across multistarts",
+      "owner": "c2_basis.staging and c2_basis.validation",
+      "exact_fail_closed": true
+    },
+    {
+      "id": "D09",
+      "predicate": "Held-out covariance blocks use the deterministic preregistered partition and every individual block remains the acceptance unit",
+      "source": "c2_basis/factors.py:_partition_block; model.py:summarize_held_out_covariance_blocks",
+      "units": "block/bin identity",
+      "uncertainty_or_covariance": "partition is discrete; normalized residual is S13",
+      "correlation": "within-block correlation is reduced by effective sample size; pooling is diagnostic only",
+      "owner": "c2_basis.factors and c2_basis.model",
+      "exact_fail_closed": true
+    },
+    {
+      "id": "D10",
+      "predicate": "Upstream QMT exact duplicate/raw-code and zero-denominator comparisons are numerical selection/sentinel behavior only, never a physical readiness gate",
+      "source": "installed qmt joint_axis_est_hinge_olsson.py; raw6_heading.py:estimate_hinge_axes_qmt",
+      "units": "quantized gyro code equality and floating zero",
+      "uncertainty_or_covariance": "quantization is S01; exact equality only identifies identical stored codes or a runtime divide sentinel",
+      "correlation": "duplicate codes are highly redundant static samples",
+      "owner": "upstream QMT behavior audited by c2 orientation frontend",
+      "exact_fail_closed": false
+    },
+    {
+      "id": "D11",
+      "predicate": "Solver convergence/cache/finite-difference tolerances compare numerical computations, not physical sensor truth",
+      "source": "c2_basis/solver.py; model.py; functional.py computational guards",
+      "units": "floating numerical scale",
+      "uncertainty_or_covariance": "algorithmic tolerance, explicitly excluded from physical acceptance",
+      "correlation": "not applicable",
+      "owner": "numerical solver",
+      "exact_fail_closed": false
+    }
+  ],
+  "stochastic_observations_and_priors": [
+    {
+      "id": "S01",
+      "predicate": "Initial-still gyro bias, gyro/accelerometer noise, and quantization uncertainty",
+      "source": "c2_basis/raw_frontend.py:estimate_stillness",
+      "units": "rad/s, rad^2/s^2, m/s^2, m^2/s^4",
+      "uncertainty_or_covariance": "sample covariance plus LSB^2/12; median bias covariance is pi/2 times observation covariance divided by correlation-reduced effective rows",
+      "correlation": "autocorrelation-reduced effective sample size; bias error is common-mode across the capture",
+      "owner": "capture-wide stillness state",
+      "hard_or_soft": "stochastic estimate; impossible magnitude only is a broad gate",
+      "status": "REPAIRED_PENDING_FOCUSED_TEST"
+    },
+    {
+      "id": "S02",
+      "predicate": "Five-phase rest/transition/action segmentation and gravity/stability evidence",
+      "source": "v0/episode.py; config_v1.json:episode_segmentation",
+      "units": "seconds, deg/s, m/s^2, degrees",
+      "uncertainty_or_covariance": "block quantiles and broad stability/activity thresholds; no exact zero motion",
+      "correlation": "100 ms metric bins and minimum duration prevent row-count domination",
+      "owner": "episode segmentation",
+      "hard_or_soft": "complete-episode membership gate after stochastic signal classification",
+      "status": "ACTIVE_NEEDS_INVENTORY_MUTATION_COVERAGE"
+    },
+    {
+      "id": "S03",
+      "predicate": "Qualitative -Y down and node-specific -Z wear directions",
+      "source": "c2_basis/mounts.py; append-only wear/frame amendments",
+      "units": "angular cone/hemisphere",
+      "uncertainty_or_covariance": "broad 55 degree primary cone with 40/70 degree sensitivity; qualitative regions, not exact vectors",
+      "correlation": "no generic bilateral raw-axis equality; each node transforms first",
+      "owner": "mount prior and branch manager",
+      "hard_or_soft": "wrong hemisphere is hard; within-cone deviations are soft/multibranch",
+      "status": "CRITICAL_REDESIGN_REQUIRED_CURRENT_BANK_EXACTIZES_NOMINAL_ROTATIONS"
+    },
+    {
+      "id": "S04",
+      "predicate": "Actual QMT-selected gyro-row excitation above per-sensor still-noise and bias uncertainty",
+      "source": "raw6_heading.py:qmt_selected_cross_denominator_report",
+      "units": "dimensionless Mahalanobis norm",
+      "uncertainty_or_covariance": "3-DOF chi-square 0.5 percent false-positive level using per-sensor observation covariance",
+      "correlation": "selected-row lag-1 and effective rows reported; common bias uncertainty is not independent by row",
+      "owner": "QMT observability audit",
+      "hard_or_soft": "isolated/low rows uninformative; widespread multistart degeneracy is named",
+      "status": "REPAIRED_PENDING_FOCUSED_TEST"
+    },
+    {
+      "id": "S05",
+      "predicate": "Cross-axis information on actual QMT-selected rows",
+      "source": "raw6_heading.py:qmt_selected_cross_denominator_report",
+      "units": "dimensionless rank-2 propagated-covariance significance and sin(theta) diagnostic",
+      "uncertainty_or_covariance": "cross-product covariance P Sigma P^T with pseudo-inverse; 2-DOF chi-square 0.5 percent level",
+      "correlation": "distribution, lag-1 effective support, action/phase/start mapping",
+      "owner": "QMT observability audit",
+      "hard_or_soft": "few unused/isolated rows cannot gate; material distribution across all starts can name conflict",
+      "status": "REPAIRED_PENDING_FOCUSED_TEST"
+    },
+    {
+      "id": "S06",
+      "predicate": "QMT heading rating and relative-axis excitation",
+      "source": "raw6_heading.py:qmt_edge_heading",
+      "units": "rating, rad/s, standardized normal significance, effective rows",
+      "uncertainty_or_covariance": "parent/child still-noise plus bias covariance; two-sided Gaussian 0.5 percent level",
+      "correlation": "lag-1 effective rows and filtered-window dependence",
+      "owner": "orientation frontend",
+      "hard_or_soft": "qualification evidence, not raw-rate equality",
+      "status": "PARTIAL_TIME_VARYING_OUTPUT_NOT_YET_OWNED"
+    },
+    {
+      "id": "S07",
+      "predicate": "Time-varying magnetometer-free parent-child heading correction trajectory",
+      "source": "qmt.headingCorrection quat2Corr/deltaFilt; factors/FK consumers",
+      "units": "quaternion/rotation and radians over nanoseconds",
+      "uncertainty_or_covariance": "QMT rating/state trajectory plus residual nine-edge graph offsets",
+      "correlation": "filtered time series; never collapsed to independent per-episode scalar calibration",
+      "owner": "persistent orientation frontend",
+      "hard_or_soft": "trajectory applied before factors and FK; residual graph offsets remain bounded global parameters",
+      "status": "CRITICAL_REDESIGN_REQUIRED_CURRENT_CODE_DISCARDS_QUAT2CORR"
+    },
+    {
+      "id": "S08",
+      "predicate": "Chronological VQF6D orientation and capture-wide bias state",
+      "source": "c2_basis/raw_frontend.py:raw_episode_from_rows",
+      "units": "rotation, rad/s, nanoseconds",
+      "uncertainty_or_covariance": "capture-wide bias/noise; explicit reset uncertainty at missing sealed intervals",
+      "correlation": "one chronological owner; reset/discontinuity events are named rather than hidden per-episode resets",
+      "owner": "persistent orientation frontend",
+      "hard_or_soft": "no yaw truth from initial still or reset",
+      "status": "CRITICAL_AUDIT_REQUIRED_CURRENT_CODE_RESETS_VQF_PER_EPISODE"
+    },
+    {
+      "id": "S09",
+      "predicate": "Full sensor-to-segment rotation and arbitrary 3D sensor-to-joint placement",
+      "source": "c2_basis/functional.py; functional geometry owner",
+      "units": "SO(3), metres in sensor/body frames",
+      "uncertainty_or_covariance": "Seel/Olsson functional center/axis estimates, multistart spread, measured-length intervals, wear cones",
+      "correlation": "shared segment endpoints and graph joints are globally synchronized",
+      "owner": "functional calibration",
+      "hard_or_soft": "full 3D placement; not axial-on-bone equality",
+      "status": "CRITICAL_REDESIGN_REQUIRED_CURRENT_FINAL_MODEL_USES_EIGHT_AXIAL_SCALARS"
+    },
+    {
+      "id": "S10",
+      "predicate": "Measured limb lengths, shoulder breadth, chest-acromion offset, and pelvis-to-chest sensor distance",
+      "source": "c2_basis/geometry.py; subject anthropometry authority",
+      "units": "metres",
+      "uncertainty_or_covariance": "explicit measurement intervals/sigmas; fixed or tightly bounded in V0",
+      "correlation": "bilateral readings may share observer/systematic error but are not hard-forced equal",
+      "owner": "anthropometric geometry",
+      "hard_or_soft": "gross collapse/length inconsistency hard; measurements are not exact equalities",
+      "status": "ACTIVE_BUT_TRUNK_HIP_PARAMETERIZATION_REDESIGN_REQUIRED"
+    },
+    {
+      "id": "S11",
+      "predicate": "Internal hip centers and trunk/hip/shoulder connection points",
+      "source": "c2_basis/geometry.py:connection_points_body,edge_points_body",
+      "units": "metres",
+      "uncertainty_or_covariance": "must be functional 3D estimates/broad sensitivity; external bicristal/bitrochanteric breadths may not define internal centers",
+      "correlation": "left/right shared pelvis/torso graph but no hard mirror",
+      "owner": "functional geometry",
+      "hard_or_soft": "gross topology hard; unmeasured locations cannot be invented fixed points",
+      "status": "CRITICAL_REDESIGN_REQUIRED_CURRENT_CODE_INVENTS_0.22_M_HIP_SPACING_AND_-0.06_M_VERTICAL"
+    },
+    {
+      "id": "S12",
+      "predicate": "Hinge-axis alignment evidence",
+      "source": "functional.py:estimate_hinge_baselines; model.py hinge rows",
+      "units": "radians/degrees",
+      "uncertainty_or_covariance": "max of broad human-worn floor and QMT multistart dispersion; no exact hinge",
+      "correlation": "shared axis across cumulative strong-action set",
+      "owner": "functional calibration and factor model",
+      "hard_or_soft": "uncertainty-weighted factor",
+      "status": "REPAIRED_PENDING_NONIDEAL_HINGE_MUTATION"
+    },
+    {
+      "id": "S13",
+      "predicate": "Joint-center/connection residual blocks and held-out NRMSE",
+      "source": "c2_basis/factors.py; model.py:held_out_report",
+      "units": "m/s^2 and dimensionless NRMSE",
+      "uncertainty_or_covariance": "sensor-noise covariance propagated through kinematics with fixed-geometry lever bounds; dynamic residual/jerk excluded from noise",
+      "correlation": "block effective sample size; every individual block <=2.5, pooling diagnostic only",
+      "owner": "factor construction and held-out evaluation",
+      "hard_or_soft": "individual preregistered block acceptance gate",
+      "status": "ACTIVE_AFTER_POOLED_GATE_REPAIR"
+    },
+    {
+      "id": "S14",
+      "predicate": "Gauge-reduced information/rank and posterior heading uncertainty",
+      "source": "c2_basis/solver.py:information_report; progressive.py",
+      "units": "rank, singular values, degrees",
+      "uncertainty_or_covariance": "Jacobian information projected off nuisance state; posterior covariance",
+      "correlation": "row covariance/effective weighting inherited from factors",
+      "owner": "progressive information state",
+      "hard_or_soft": "readiness diagnostic/gate; row count and action count forbidden",
+      "status": "STALE_UNTIL_NEW_STATE_OWNERSHIP_REPLACES_17D_NUISANCE"
+    },
+    {
+      "id": "S15",
+      "predicate": "Multistart/branch concentration and progressive-versus-fresh-batch agreement",
+      "source": "solver.py; calibration.py; progressive.py",
+      "units": "degrees, metres, candidate likelihood",
+      "uncertainty_or_covariance": "distribution over legal starts/branches; preregistered agreement tolerances",
+      "correlation": "same cumulative episodes but independent fresh batch initialization/construction",
+      "owner": "branch manager and progressive state",
+      "hard_or_soft": "readiness may decrease on conflict",
+      "status": "STALE_UNTIL_NEW_STATE_OWNERSHIP"
+    },
+    {
+      "id": "S16",
+      "predicate": "Gross standing topology, limb crossing, knee split, segment collapse, shared-joint consistency, and ROM",
+      "source": "c2_basis/model.py:feasibility_report; solver.py stage-C/D candidate filters",
+      "units": "metres and degrees",
+      "uncertainty_or_covariance": "broad human manifold tolerances, not exact pose truth",
+      "correlation": "whole-body coupled candidate gate",
+      "owner": "physical feasibility",
+      "hard_or_soft": "nontradeable candidate filter; never an optimizer loss",
+      "status": "STAGE_D_SELECTION_REPAIRED_PENDING_MUTATION; GEOMETRY_REDESIGN_REQUIRED"
+    },
+    {
+      "id": "S17",
+      "predicate": "Node-wise bilateral response semantics",
+      "source": "mounts.py:qualitative_forward_projection_report; frame semantics amendment",
+      "units": "component sign/dominance after node transform",
+      "uncertainty_or_covariance": "qualitative cone and motion-phase/specific-force caveats",
+      "correlation": "human-tolerant bilateral comparison only after node-wise transform",
+      "owner": "mount/frame semantic validation",
+      "hard_or_soft": "metadata semantic mutation; never raw xyz equality",
+      "status": "ACTIVE_FOCUSED_TESTS_REQUIRED_TO_REMAIN_FAIL_CLOSED"
+    },
+    {
+      "id": "S18",
+      "predicate": "Direct fixed-geometry FK visual posture/animation",
+      "source": "c2_basis/viewer.py; real-run failure callback",
+      "units": "3D metres projected front/side/top",
+      "uncertainty_or_covariance": "profile measurement/placement uncertainty and conflicts annotated",
+      "correlation": "chronological frames/actions; visual judgments stored separately",
+      "owner": "validation/viewer",
+      "hard_or_soft": "independent human gate; gross invalid standing is immediate failure",
+      "status": "PARTIAL_SUCCESS_ONLY_EXPORT_EXISTS; FAILURE_EXPORT_AND_NEW_GEOMETRY_REQUIRED"
+    },
+    {
+      "id": "S19",
+      "predicate": "Synthetic positive/negative qualification",
+      "source": "c2_basis/synthetic_truth.py; qualification.py",
+      "units": "randomized physical/sensor parameters and acceptance metrics",
+      "uncertainty_or_covariance": "must be model-independent with arbitrary 3D offsets, continuous mounts, imperfect joints/STA, drifting bias/yaw, noise and order permutations",
+      "correlation": "one chronological synthetic capture with persistent state; action-order mutations separate",
+      "owner": "independent synthetic oracle",
+      "hard_or_soft": "all positives pass and all mutations reject before real access",
+      "status": "CRITICAL_REDESIGN_REQUIRED_CURRENT_GENERATOR_DUPLICATES_ESTIMATOR_MODEL_CLASS"
+    }
+  ],
+  "stale_artifacts": [
+    {
+      "path": "logs/c2_basis_synthetic_qualification_20260829_060951/qualification.json",
+      "sha256": "f11fd25e...",
+      "former_status": "PASS",
+      "current_status": "STALE_NOT_QUALIFYING",
+      "reason": "positive oracle duplicates axial estimator geometry/mounts and lacks time-varying relative yaw drift"
+    },
+    {
+      "path": "logs/c2_basis_progressive_20260829_061546",
+      "run_failure_sha256": "5b73abe2...",
+      "checkpoint_sha256": "5d9c1bd5...",
+      "current_status": "PRESERVED_DIAGNOSTIC_ONLY",
+      "reason": "17D axial placement, discarded QMT correction trajectory, and pre-filter Stage-D selection"
+    },
+    {
+      "path": "logs/pure_imu_v0_raw6_bounded_access_20260828T060355Z/CAPTURE2_DIRECT_RAW6_FK_VIEWER_V3.html",
+      "current_status": "STALE_DIAGNOSTIC_ONLY_NOT_EVIDENCE",
+      "reason": "legacy renderer/model basis; may illustrate pathology but cannot qualify the repaired basis"
+    },
+    {
+      "path": "logs/pure_imu_v0_c2_topology_repair_20260828T145040Z/CAPTURE2_RESULT.json",
+      "current_status": "STALE_FAILED_DIAGNOSTIC",
+      "reason": "gross invalid standing already observed; no complete exported tri-view evidence"
+    }
+  ],
+  "gate_1_status": "COMPLETE_INVENTORY_WITH_OPEN_CRITICAL_REPAIRS",
+  "gate_5_authorized": false
+}

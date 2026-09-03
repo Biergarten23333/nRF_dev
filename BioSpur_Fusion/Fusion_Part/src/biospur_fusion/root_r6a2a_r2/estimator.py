@@ -862,6 +862,9 @@ class RepairedShadowEstimator:
 
 
 def build_estimator(fusion: Path, initial_reference: KeyframeState, low_motion: bool = False) -> tuple[RepairedShadowEstimator, dict[str, Any]]:
-    model = corrected_body_model(Path(fusion))
+    model = corrected_body_model(
+        Path(fusion), identity_mapping=CORRECT_NODE_MAP,
+        identity_provenance="SYNTHETIC_R6A2A_R2_CORRECTED_FORWARD_MAP",
+    )
     initial, covariance_contract = make_initial_state(model, initial_reference, low_motion)
     return RepairedShadowEstimator(model, initial), covariance_contract

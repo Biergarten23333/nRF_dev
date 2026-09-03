@@ -1,0 +1,74 @@
+{
+  "schema": "biospur-imu-only-multi-action-centerline-gates-v1",
+  "product": "IMU_ONLY_MULTI_ACTION_CENTERLINE_CALIBRATION_V1",
+  "allowed_npz_keys": [
+    "action_windows",
+    "imu_BSF1120", "imu_BSF31CC", "imu_BSF3C79", "imu_BSF44AD",
+    "imu_BSF6C53", "imu_BSF8BC4", "imu_BSFAA61", "imu_BSFB165",
+    "imu_BSFC2CC", "imu_BSFEC35"
+  ],
+  "sealed": {"UWB_T4": true, "anchor_geometry": true, "operator_measurements": true, "walk": true, "final_still": true},
+  "sampling": {
+    "refinement_hz": 50.0,
+    "render_hz": 30.0,
+    "yaw_knot_s": 1.0,
+    "anti_alias_cutoff_hz": 20.0,
+    "anti_alias_order": 4,
+    "max_samples_per_action_factor": 1000,
+    "minimum_mandatory_informative_samples": 125
+  },
+  "noise_floors": {
+    "gyro_sigma_rad_s": 0.002,
+    "accel_sigma_mps2": 0.02,
+    "orientation_sigma_rad": 0.008726646259971648,
+    "yaw_random_walk_sigma_rad_sqrt_s": 0.0008726646259971648
+  },
+  "optimizer": {
+    "loss": "huber",
+    "f_scale": 1.5,
+    "max_nfev": 120,
+    "ftol": 1e-10,
+    "xtol": 1e-10,
+    "gtol": 1e-10,
+    "x_scale": 1.0,
+    "threads": 1,
+    "multistart_degrees": [0.0, 15.0, -15.0, 30.0, -30.0]
+  },
+  "observability": {
+    "relative_singular_value_threshold": 1e-6
+  },
+  "synthetic_gates": {
+    "maximum_segment_axis_error_deg": 2.0,
+    "maximum_hinge_axis_error_deg": 2.0,
+    "maximum_joint_zero_error_deg": 3.0,
+    "maximum_relative_heading_error_deg": 3.0,
+    "byte_identical_replays": true
+  },
+  "real_gates": {
+    "pose_anchor_max_axis_difference_deg": 1.0,
+    "pose_anchor_max_joint_angle_difference_deg": 1.0,
+    "maximum_action_boundary_segment_step_deg": 5.0,
+    "maximum_static_axis_jitter_deg": 3.0,
+    "maximum_return_to_zero_error_deg": 15.0,
+    "maximum_inactive_segment_range_deg": 15.0,
+    "minimum_active_segment_range_deg": 15.0,
+    "optional_action_removal_max_axis_difference_deg": 2.0
+  },
+  "template": {
+    "path": "Fusion_Part/config/generic_template_motion_demo_v1/GENERIC_ADULT_PROXY_V1.json",
+    "sha256": "892fa156db60f19120e45ea9bc537361e5ef4f73518d1753aa38fd73d389fce4"
+  },
+  "node_to_segment": {
+    "BSF31CC": "torso", "BSFC2CC": "pelvis",
+    "BSFAA61": "upper_arm_L", "BSF1120": "upper_arm_R",
+    "BSFB165": "forearm_L", "BSFEC35": "forearm_R",
+    "BSF44AD": "thigh_L", "BSF3C79": "thigh_R",
+    "BSF6C53": "shank_L", "BSF8BC4": "shank_R"
+  },
+  "hinge_pairs": {
+    "elbow_L": ["upper_arm_L", "forearm_L", "left_elbow"],
+    "elbow_R": ["upper_arm_R", "forearm_R", "right_elbow_attempt2"],
+    "knee_L": ["thigh_L", "shank_L", "left_knee"],
+    "knee_R": ["thigh_R", "shank_R", "right_knee"]
+  }
+}

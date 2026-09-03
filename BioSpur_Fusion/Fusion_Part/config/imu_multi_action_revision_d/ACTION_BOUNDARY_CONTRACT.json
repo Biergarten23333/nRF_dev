@@ -1,0 +1,65 @@
+{
+  "schema": "biospur-revision-d-action-boundary-contract-v1",
+  "revision": "D-1B",
+  "LABEL_USAGE": "OUTER_SEARCH_ENVELOPE_ONLY",
+  "signal": {
+    "definition": "COMMON_TIME_VALIDITY_AWARE_PARENT_TRANSPOSE_CHILD_RELATIVE_ROTATION_INCREMENT",
+    "rate_hz": 50.0,
+    "smoothing_s": 0.10,
+    "activity_uncertainty_floor_rad_s": 0.035,
+    "covariance_increment_scale": 1.0,
+    "robust_off_axis_mismatch_window_s": 0.50,
+    "proximal_compensation_penalty_gain": 0.20,
+    "minimum_finite_chain_fraction": 0.80
+  },
+  "search_domain": {
+    "pre_roll_s": 2.0,
+    "post_roll_s": 2.0,
+    "adjacent_boundary_policy": "CLIP_AT_SAFE_MIDPOINT_BETWEEN_LABELLED_WINDOWS",
+    "timeline_policy": "CLIP_TO_CALIBRATION_TIMELINE",
+    "missing_reference_policy": "REPORT_TRUNCATION_NEVER_INVENT_REFERENCE"
+  },
+  "state_machine": {
+    "onset_activity_snr": 3.0,
+    "offset_activity_snr": 1.5,
+    "minimum_onset_evidence_s": 0.12,
+    "minimum_active_bout_s": 0.30,
+    "minimum_quiet_reference_s": 0.40,
+    "maximum_bridgeable_below_threshold_gap_s": 0.12,
+    "maximum_bridgeable_invalid_gap_s": 0.04,
+    "boundary_uncertainty_support_s": 0.12,
+    "minimum_cycle_excursion_snr": 3.0,
+    "minimum_direction_reversal_rad": 0.10,
+    "neutral_orientation_compatibility_sigma": 3.5,
+    "neutral_absolute_cap_rad": 0.45,
+    "uncertain_boundary_taper": "LINEAR_WITHIN_BOUNDARY_UNCERTAINTY_SUPPORT",
+    "truncated_bout_policy": "FAIL_CLOSED"
+  },
+  "static_plateau": {
+    "minimum_duration_s": 1.0,
+    "edge_exclusion_s": 0.30,
+    "maximum_activity_snr": 1.5,
+    "selection": "HIGHEST_CONTINUOUS_CONFIDENCE_WITH_MINIMUM_ORIENTATION_DISPERSION",
+    "initial_and_tpose_independent": true
+  },
+  "informative_rows": {
+    "selection_after_boundary_freeze": true,
+    "maximum_rows_per_bout": 120,
+    "rule": "DETERMINISTIC_TIME_UNIFORM_WITH_ENDPOINTS_AND_REVERSALS_RETAINED",
+    "full_bout_membership_preserved": true
+  },
+  "repetition_semantics": {
+    "protocol_count_is_hard_gate": false,
+    "expected_repetitions_are_soft_qc_only": true,
+    "require_excursion_reversal_and_return": true,
+    "partial_repetitions_reported_separately": true
+  },
+  "threshold_justification": {
+    "activity_uncertainty_floor": "0.035 rad/s is above the qualified Q2 gyro noise at a 50 Hz analysis rate and prevents division by a vanishing covariance increment.",
+    "hysteresis": "3.0 sigma onset and 1.5 sigma offset separate sustained movement evidence from human sway while allowing smooth deceleration.",
+    "dwell": "At 50 Hz, onset, active, and reference dwells correspond to 6, 15, and 20 consecutive samples; no isolated spike can create a bout.",
+    "invalid_gap": "0.04 s permits at most two 50 Hz grid rows and remains within the already-qualified Q2/common-time gap contract.",
+    "neutral": "Neutral requires both quiet dwell and covariance-scaled compatibility with a preceding reference; low speed alone is insufficient."
+  },
+  "frozen_before_real_signal_inspection": true
+}

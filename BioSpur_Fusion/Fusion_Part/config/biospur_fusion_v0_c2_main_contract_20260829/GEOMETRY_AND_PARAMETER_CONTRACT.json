@@ -1,0 +1,325 @@
+{
+  "schema": "biospur-c2-geometry-and-parameter-ownership-v1",
+  "document_status": "USER_REVIEW_DRAFT_NOT_ACTIVATED",
+  "governing_rule": "Every real-fit or viewer-affecting parameter must have one declared owner, provenance, unit, uncertainty, fixed-versus-derived-versus-fitted status, consequence class, and sensitivity rule. An unregistered parameter is a Class-A architecture defect.",
+  "authoritative_anthropometry": {
+    "path": "config/body_calibration_v4_1/v47_subject_surface_anthropometry_20260828.json",
+    "sha256": "469095348120d887b0bd4bbd67a0dc3fa9b2d3e6dff6dda9ec450310f9308035",
+    "units": "mm",
+    "source": "operator-reported soft-tape/surface-landmark observations",
+    "raw_readings_preserved": true,
+    "readings_may_be_silently_averaged": false,
+    "instrument_resolution_status": "UNKNOWN",
+    "measurement_uncertainty_status": "UNBOUND_NULL_IN_AUTHORITY",
+    "zero_uncertainty_allowed": false,
+    "population_average_substitution_allowed": false,
+    "append_only_user_clarifications": [
+      {
+        "path": "config/biospur_fusion_v0_c2_main_contract_20260829/USER_ANTHROPOMETRY_AMENDMENT_001.json",
+        "amendment_id": "USER_ANTHROPOMETRY_AMENDMENT_001",
+        "role": "resolves the previously unrecorded side assignment of the 260-265 mm second-observer forearm range as bilateral"
+      }
+    ]
+  },
+  "observed_external_geometry": [
+    {
+      "measurement_id": "left_forearm_surface_length",
+      "definition": "left lateral humeral epicondyle to left radial/ulnar styloid midpoint",
+      "observations_mm": [245],
+      "owner": "measured_external_geometry",
+      "scientific_role": "surface-landmark scale evidence, not internal elbow-to-wrist truth"
+    },
+    {
+      "measurement_id": "right_forearm_surface_length",
+      "definition": "right lateral humeral epicondyle to right radial/ulnar styloid midpoint",
+      "observations_mm": [245],
+      "owner": "measured_external_geometry",
+      "scientific_role": "surface-landmark scale evidence, not internal elbow-to-wrist truth"
+    },
+    {
+      "measurement_id": "forearm_surface_length_unassigned_second_observer",
+      "definition": "lateral humeral epicondyle to radial/ulnar styloid midpoint; side assignment was not recorded",
+      "observation_range_mm": [260, 265],
+      "side_assignment_in_original_authority": "UNKNOWN",
+      "effective_side_assignment_after_user_amendment": "BILATERAL_SAME_REPORTED_RANGE",
+      "effective_left_observation_range_mm": [260, 265],
+      "effective_right_observation_range_mm": [260, 265],
+      "amendment_path": "config/biospur_fusion_v0_c2_main_contract_20260829/USER_ANTHROPOMETRY_AMENDMENT_001.json",
+      "owner": "measured_external_geometry",
+      "scientific_role": "bilateral second-observer surface-range evidence; not an exact scalar and not internal bone truth"
+    },
+    {
+      "measurement_id": "left_upper_arm_surface_length",
+      "definition": "left acromion to left lateral humeral epicondyle",
+      "observations_mm": [310, 325],
+      "owner": "measured_external_geometry",
+      "scientific_role": "surface-landmark scale evidence, not glenohumeral-center-to-elbow truth"
+    },
+    {
+      "measurement_id": "right_upper_arm_surface_length",
+      "definition": "right acromion to right lateral humeral epicondyle",
+      "observations_mm": [310, 325],
+      "owner": "measured_external_geometry",
+      "scientific_role": "surface-landmark scale evidence, not glenohumeral-center-to-elbow truth"
+    },
+    {
+      "measurement_id": "left_thigh_surface_length",
+      "definition": "left greater trochanter to left lateral femoral epicondyle",
+      "observations_mm": [480],
+      "owner": "measured_external_geometry",
+      "scientific_role": "surface-landmark scale evidence, not hip-center-to-knee-center truth"
+    },
+    {
+      "measurement_id": "right_thigh_surface_length",
+      "definition": "right greater trochanter to right lateral femoral epicondyle",
+      "observations_mm": [480],
+      "owner": "measured_external_geometry",
+      "scientific_role": "surface-landmark scale evidence, not hip-center-to-knee-center truth"
+    },
+    {
+      "measurement_id": "left_shank_surface_length",
+      "definition": "left lateral femoral epicondyle to left medial/lateral malleolar midpoint",
+      "observations_mm": [430],
+      "owner": "measured_external_geometry",
+      "scientific_role": "surface-landmark scale evidence, not knee-center-to-ankle-center truth"
+    },
+    {
+      "measurement_id": "right_shank_surface_length",
+      "definition": "right lateral femoral epicondyle to right medial/lateral malleolar midpoint",
+      "observations_mm": [430],
+      "owner": "measured_external_geometry",
+      "scientific_role": "surface-landmark scale evidence, not knee-center-to-ankle-center truth"
+    },
+    {
+      "measurement_id": "biacromial_breadth",
+      "definition": "left acromion to right acromion external breadth",
+      "observations_mm": [400, 425],
+      "owner": "measured_external_geometry",
+      "scientific_role": "external acromion breadth; not internal glenohumeral-center spacing"
+    },
+    {
+      "measurement_id": "chest_sensor_to_vertex_distance",
+      "definition": "chest sensor center to vertex of head",
+      "observations_mm": [470],
+      "owner": "sanity_or_rendering_only",
+      "scientific_role": "not a torso joint-center length"
+    },
+    {
+      "measurement_id": "chest_sensor_to_acromion_line_vertical_distance",
+      "definition": "chest sensor center to bilateral acromion line",
+      "observations_mm": [140, 150],
+      "owner": "measured_sensor_to_surface_geometry",
+      "scientific_role": "torso sensor-to-surface evidence; not a shoulder-center vector"
+    },
+    {
+      "measurement_id": "pelvis_sensor_to_chest_sensor_center_distance",
+      "definition": "pelvis sensor center to chest sensor center",
+      "observations_mm": [280],
+      "owner": "measured_sensor_to_sensor_geometry",
+      "scientific_role": "sensor-origin scale evidence; not anatomical torso/spine length"
+    },
+    {
+      "measurement_id": "bicristal_breadth",
+      "definition": "external left/right lateralmost iliac crest breadth",
+      "observations_mm": [335, 315],
+      "owner": "measured_external_geometry",
+      "scientific_role": "not ASIS breadth and not internal hip-center spacing"
+    },
+    {
+      "measurement_id": "bitrochanteric_breadth",
+      "definition": "external left/right greater-trochanter breadth",
+      "observations_mm": [335],
+      "owner": "measured_external_geometry",
+      "scientific_role": "not internal hip-center spacing"
+    },
+    {
+      "measurement_id": "pelvis_anterior_posterior_depth",
+      "definition": "horizontal bilateral-ASIS-midpoint to bilateral-PSIS-midpoint depth",
+      "observations_mm": [200],
+      "owner": "measured_external_geometry",
+      "scientific_role": "may enter a published hip-center regression only with all other required inputs"
+    }
+  ],
+  "limb_scale_contract": {
+    "links": [
+      {
+        "link": "upper_arm_left",
+        "surface_observations_mm": [310, 325],
+        "internal_joint_center_length_status": "NOT_DIRECTLY_MEASURED"
+      },
+      {
+        "link": "upper_arm_right",
+        "surface_observations_mm": [310, 325],
+        "internal_joint_center_length_status": "NOT_DIRECTLY_MEASURED"
+      },
+      {
+        "link": "forearm_left",
+        "surface_observations_mm": [245],
+        "bilateral_second_observer_surface_range_mm": [260, 265],
+        "bilateral_range_authority": "USER_ANTHROPOMETRY_AMENDMENT_001",
+        "internal_joint_center_length_status": "NOT_DIRECTLY_MEASURED"
+      },
+      {
+        "link": "forearm_right",
+        "surface_observations_mm": [245],
+        "bilateral_second_observer_surface_range_mm": [260, 265],
+        "bilateral_range_authority": "USER_ANTHROPOMETRY_AMENDMENT_001",
+        "internal_joint_center_length_status": "NOT_DIRECTLY_MEASURED"
+      },
+      {
+        "link": "thigh_left",
+        "surface_observations_mm": [480],
+        "internal_joint_center_length_status": "NOT_DIRECTLY_MEASURED"
+      },
+      {
+        "link": "thigh_right",
+        "surface_observations_mm": [480],
+        "internal_joint_center_length_status": "NOT_DIRECTLY_MEASURED"
+      },
+      {
+        "link": "shank_left",
+        "surface_observations_mm": [430],
+        "internal_joint_center_length_status": "NOT_DIRECTLY_MEASURED"
+      },
+      {
+        "link": "shank_right",
+        "surface_observations_mm": [430],
+        "internal_joint_center_length_status": "NOT_DIRECTLY_MEASURED"
+      }
+    ],
+    "real_fit_rule": "Before real fitting, convert raw surface observations into a frozen, provenance-preserving scale likelihood or bounded proxy using an explicit landmark-to-joint-center mapping and nonzero uncertainty. Real IMU residuals may not freely change absolute link length to improve fit.",
+    "raw_observations_remain_separate": true,
+    "hard_left_right_symmetry": false,
+    "surface_chord_may_be_called_true_bone_length": false,
+    "length_is_unconstrained_real_fit_coordinate": false,
+    "if_internal_mapping_remains_unqualified": "Use one preregistered LANDMARK_PROXY skeleton consistently for A/B/C and label it non-anatomical; do not claim anatomical-geometry PASS, while heading/basis diagnostics may continue."
+  },
+  "internal_joint_center_geometry": {
+    "shoulder_centers": {
+      "status": "MISSING_DIRECT_INTERNAL_GEOMETRY",
+      "available_evidence": ["biacromial breadth 400/425 mm", "chest sensor to acromion line 140/150 mm"],
+      "missing_for_meskers": "common-frame AC/AA/TS/AI/PC 3D landmark digitization",
+      "forbidden_substitutions": ["biacromial breadth as glenohumeral spacing", "fixed shoulder offset", "hard symmetry"]
+    },
+    "hip_centers": {
+      "status": "MISSING_DIRECT_INTERNAL_GEOMETRY",
+      "available_evidence": ["bicristal 335/315 mm", "bitrochanteric 335 mm", "pelvis AP depth 200 mm"],
+      "missing_for_harrington": "ASIS breadth is not present; bicristal breadth is not ASIS breadth",
+      "forbidden_substitutions": ["0.22 m internal hip spacing", "0.18/0.22/0.26 m sensitivity as truth", "0.06 m vertical hip offset", "bicristal or bitrochanteric breadth as internal spacing"]
+    },
+    "torso_connection": {
+      "status": "SENSOR_DISTANCE_MEASURED_ANATOMICAL_CONNECTION_NOT_DIRECTLY_MEASURED",
+      "available_evidence": ["pelvis-sensor to chest-sensor center distance 280 mm", "chest sensor to acromion line 140/150 mm"],
+      "forbidden_substitutions": ["280 mm as spine length", "invented torso length", "ideal centerline", "post-hoc torso rebase"]
+    },
+    "feet_and_floor": {
+      "status": "NOT_MEASURED_AND_NOT_SENSOR_TRACKED",
+      "allowed_role": "optional rendering only",
+      "forbidden_effect": "missing feet/floor dimensions may not invalidate torso/limb orientation calibration"
+    }
+  },
+  "functional_fit_parameter_blocks": {
+    "mount_extrinsics": {
+      "count": 10,
+      "representation": "full_SO3_each_node",
+      "source": "broad non-compact qualitative wear distributions plus cumulative C2 functional evidence",
+      "hard_exact_mount": false,
+      "weak_or_unidentifiable_directions_remain_uncertain": true,
+      "per_action_mount_profiles": false
+    },
+    "edge_connection_vectors": {
+      "edge_count": 9,
+      "vectors_per_edge": 2,
+      "total_vector3_count": 18,
+      "frame": "corresponding sensor frame or explicitly transformed segment frame",
+      "representation": "full_3D_off_axis",
+      "constraints": ["shared-joint consistency", "functional joint-center evidence", "frozen measured scale likelihood", "physical topology"],
+      "axial_scalar_only": false
+    },
+    "hinge_axes": {
+      "joints": ["elbow_left", "elbow_right", "knee_left", "knee_right"],
+      "representation": "axis with sign ambiguity/multiple legal branches, uncertainty and nonideal/slow-variation sensitivity",
+      "perfect_hinge_assumption": false,
+      "joint_center_migration_and_soft_tissue_model_error_required": true
+    },
+    "shoulder_and_hip_motion": {
+      "joints": ["shoulder_left", "shoulder_right", "hip_left", "hip_right"],
+      "representation": "functional center/connection and motion-subspace evidence; not forced one-axis hinges",
+      "action_label_is_pose_truth": false
+    },
+    "capture_wide_sensor_stochastic_state": {
+      "count": "10 nodes x 6 axes plus covariance and timing/status diagnostics",
+      "effects": ["bias", "slow drift", "scale factor", "cross-axis/non-orthogonality", "noise", "quantization", "static correlation", "timestamp jitter", "gaps", "duplicates", "clipping"],
+      "owner": "capture-wide stochastic frontend and preregistered sensitivity",
+      "initial_still_uniquely_owns_yaw_or_geometry": false
+    },
+    "relative_heading_state": {
+      "edge_count": 9,
+      "root_gauge_count": 1,
+      "owner": "nine persistent edge states with official-style rooted-tree propagation of time-varying QMT observations",
+      "bespoke_global_nonlinear_heading_solver_default": false,
+      "constant_mean_seed_only": false
+    }
+  },
+  "gauge_and_nonobservable_quantities": {
+    "global_translation": "display gauge only; not measured by pure IMU V0",
+    "pelvis_global_yaw": "one gauge; not north or absolute heading",
+    "long_term_absolute_position": "not a V0 calibration claim",
+    "floor_contact_and_foot_pose": "not observable with this ten-node sensor set without an explicitly separate model",
+    "viewer_camera": "presentation only and identical across compared trajectories"
+  },
+  "legacy_parameter_disposition": {
+    "audited_old_config": {
+      "path": "config/biospur_fusion_v0_c2_basis/config_v1.json",
+      "sha256": "941ff9b9409d079f11fd1459ca52dabc1494dd862743828322b2df4281510e1b",
+      "status": "DIAGNOSTIC_ONLY_NOT_AN_ACTIVE_PARAMETER_SOURCE"
+    },
+    "explicitly_forbidden_old_values_or_structures": [
+      "pelvis_center_to_hip_center_vertical_offset_m = 0.06",
+      "internal_hip_center_spacing_nominal_m = 0.22",
+      "internal_hip_center_spacing_sensitivity_m = [0.18, 0.22, 0.26] treated as truth",
+      "eight axial-only sensor offsets and their old bounds",
+      "maximum_final_mount_correction_deg = 25 used against a 55 degree wear cone",
+      "surface lengths silently relabeled as exact internal bone lengths",
+      "old display_geometry shoulder/hip/torso offsets",
+      "old standing/ROM/acceptance thresholds used without new model-class qualification",
+      "old 600-to-300 QMT selection contract or any result-directed small-row selection",
+      "old synthetic thresholds treated as proof for the replacement model"
+    ],
+    "reuse_rule": "No old numerical value may enter the replacement real fit merely because it exists in config_v1.json or source. Reuse requires an entry in the new active registry with independent provenance and pre-real-fit qualification."
+  },
+  "runtime_active_parameter_registry": {
+    "required_before_real_fit": true,
+    "file_name": "ACTIVE_PARAMETER_REGISTRY.json",
+    "required_fields_per_parameter": [
+      "parameter_id",
+      "owner",
+      "dimension_or_shape",
+      "units",
+      "fixed_derived_fitted_state_or_gauge",
+      "source_path_or_primary_reference",
+      "raw_observations_or_formula",
+      "prior_or_uncertainty",
+      "bounds_or_manifold",
+      "consumer_modules",
+      "consequence_class",
+      "sensitivity_or_identifiability_test",
+      "may_change_after_real_fit_begins"
+    ],
+    "numeric_source_scan_required": true,
+    "scan_scope": ["new source modules", "new config", "solver defaults", "viewer defaults"],
+    "unregistered_real_fit_or_viewer_parameter_allowed": false,
+    "result_dependent_parameter_insertion_allowed": false,
+    "post_fit_changes": "append-only new run and reseal; no in-place threshold or geometry edits"
+  },
+  "threshold_and_numerical_parameter_rule": {
+    "sensor_noise_parameters": "estimated from initial still with correlation and quantization, plus preregistered scale/cross-axis/drift/timing sensitivity; recorded per node",
+    "human_model_error": "soft tissue, slow strap slippage, nonideal hinge/center migration, asymmetry and imperfect movement widen covariance or robust loss; never exact-equality stop or per-action profile",
+    "scientific_thresholds": "fixed before real fitting from covariance/probability/physical manifold/independent synthetic and sensitivity-tested",
+    "solver_tolerances_and_iteration_limits": "listed in active registry and convergence traces; numerical settings are not scientific truth",
+    "viewer_dimensions": "come from this geometry contract or are explicitly labeled proxies; never hidden constants",
+    "ordinary_warning_or_low_information": "Class C or D and does not terminate the overall task",
+    "physical_impossibility": "Class B candidate rejection before residual ranking",
+    "architecture_or_provenance_violation": "Class A current-run stop, repair, reseal, and continue overall task"
+  }
+}

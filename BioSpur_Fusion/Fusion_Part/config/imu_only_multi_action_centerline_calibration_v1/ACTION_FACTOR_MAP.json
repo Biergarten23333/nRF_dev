@@ -1,0 +1,54 @@
+{
+  "actions": {
+    "arms": {
+      "estimation_factors": ["bilateral_arm_hinge_alignment", "arm_multi_pose_heading", "elbow_zero_preservation"],
+      "validation": ["left_right_identity", "inactive_lower_body" ]
+    },
+    "initial_still_attempt2": {
+      "estimation_factors": ["q2_bias_gravity", "static_segment_directions", "torso_pelvis_transverse", "elbow_zero", "knee_zero", "joint_sign_reference"],
+      "validation": ["stationary_repeatability"]
+    },
+    "left_elbow": {
+      "estimation_factors": ["olsson_gyro", "olsson_acceleration", "hinge_heading_alignment", "elbow_sign", "return_to_zero"],
+      "joint": "elbow_L"
+    },
+    "left_heel": {
+      "estimation_factors": [],
+      "node_placement_verdict": "NOT_SUPPORTED_BY_NODE_PLACEMENT_FOR_FOOT_DOF",
+      "validation": ["left_shank_chain"]
+    },
+    "left_knee": {
+      "estimation_factors": ["olsson_gyro", "olsson_acceleration", "hinge_heading_alignment", "knee_sign", "return_to_zero"],
+      "joint": "knee_L"
+    },
+    "right_elbow_attempt2": {
+      "estimation_factors": ["olsson_gyro", "olsson_acceleration", "hinge_heading_alignment", "elbow_sign", "return_to_zero"],
+      "joint": "elbow_R"
+    },
+    "right_heel": {
+      "estimation_factors": [],
+      "node_placement_verdict": "NOT_SUPPORTED_BY_NODE_PLACEMENT_FOR_FOOT_DOF",
+      "validation": ["right_shank_chain"]
+    },
+    "right_knee": {
+      "estimation_factors": ["olsson_gyro", "olsson_acceleration", "hinge_heading_alignment", "knee_sign", "return_to_zero"],
+      "joint": "knee_R"
+    },
+    "squats": {
+      "estimation_factors": ["bilateral_knee_hinge_alignment", "knee_zero_preservation", "lower_chain_range"],
+      "validation": ["left_right_symmetry", "inactive_arms"]
+    },
+    "t_pose": {
+      "estimation_factors": ["static_segment_directions", "torso_pelvis_transverse", "elbow_zero", "arm_multi_pose_heading"],
+      "validation": ["separate_pose_repeatability"]
+    },
+    "trunk": {
+      "estimation_factors": ["pelvis_torso_relative_heading", "torso_pelvis_transverse_consistency"],
+      "validation": ["lower_limb_inactivity"]
+    }
+  },
+  "all_ledger_actions_mapped": true,
+  "labels_allowed_during_calibration": true,
+  "labels_allowed_during_replay_estimation": false,
+  "schema": "biospur-multi-action-factor-map-v1"
+}

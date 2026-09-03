@@ -1,0 +1,277 @@
+{
+  "schema": "biospur-c2-active-parameter-registry-v1",
+  "template_only_not_active_registry": true,
+  "document_status": "USER_REVIEW_DRAFT_NOT_ACTIVATED",
+  "generation_rule": "The formal run creates a new immutable ACTIVE_PARAMETER_REGISTRY.json from this reviewed template. Every placeholder is resolved before first real fit; values learned from real fit cannot be inserted retroactively as priors or thresholds.",
+  "required_fields_per_parameter": [
+    "parameter_id",
+    "owner",
+    "dimension_or_shape",
+    "units",
+    "status",
+    "source_path_or_primary_reference",
+    "raw_observations_or_formula",
+    "prior_or_uncertainty",
+    "bounds_or_manifold",
+    "consumer_modules",
+    "consequence_class",
+    "sensitivity_or_identifiability_test",
+    "freeze_time",
+    "may_change_after_real_fit_begins"
+  ],
+  "freeze_order": [
+    "REVIEW_FIXED_AUTHORITY",
+    "P0_INPUT_AND_PROVENANCE",
+    "P1_NOISE_PRIMARY_METHOD_AND_INDEPENDENT_SYNTHETIC",
+    "PRE_REAL_FIT_IMMUTABLE_FREEZE",
+    "REAL_FIT_OUTPUT_POSTERIOR_ONLY"
+  ],
+  "groups": [
+    {
+      "group_id": "SCOPE_IDENTITY_AND_TOPOLOGY",
+      "freeze_stage": "REVIEW_FIXED_AUTHORITY",
+      "parameters": [
+        "capture_id_and_root",
+        "ten_hardware_to_segment_mappings",
+        "nineteen_action_attempts_and_order",
+        "nine_directed_parent_child_edges",
+        "one_pelvis_yaw_gauge",
+        "allowed_and_forbidden_input_fields",
+        "holdout_firewall_paths"
+      ]
+    },
+    {
+      "group_id": "RAW_INPUT_SEMANTICS",
+      "freeze_stage": "REVIEW_FIXED_AUTHORITY",
+      "parameters": [
+        "accelerometer_raw_word_order_sign_and_units",
+        "gyroscope_raw_word_order_sign_and_units",
+        "gravity_convention",
+        "timestamp_boot_epoch_sequence_status_semantics",
+        "adaptive_accelerometer_range_and_fixed_output_encoding",
+        "qmt_quaternion_order_and_active_passive_round_trip"
+      ]
+    },
+    {
+      "group_id": "WEAR_PRIORS",
+      "freeze_stage": "REVIEW_FIXED_AUTHORITY",
+      "parameters": [
+        "ten_minus_z_qualitative_directions",
+        "ten_minus_y_approximately_ground_directions",
+        "soft_directional_distribution_and_broadness_sensitivity",
+        "near_uninformative_hemisphere_supported_sensitivity_case",
+        "wrong_hemisphere_definition",
+        "nominal_frame_construction_rule",
+        "legal_initial_branch_generation_rule"
+      ]
+    },
+    {
+      "group_id": "RAW_ANTHROPOMETRY_AND_SCALE",
+      "freeze_stage": "PRE_REAL_FIT_IMMUTABLE_FREEZE",
+      "parameters": [
+        "all_sixteen_external_measurement_records",
+        "bilateral_forearm_second_observer_range_from_user_amendment",
+        "instrument_resolution_missingness",
+        "measurement_repeat_and_observer_model",
+        "surface_landmark_to_internal_or_proxy_mapping",
+        "per_link_scale_likelihood_or_proxy",
+        "measurement_and_landmark_mapping_uncertainty",
+        "left_right_independence_and_shared_ambiguity"
+      ]
+    },
+    {
+      "group_id": "MISSING_INTERNAL_GEOMETRY",
+      "freeze_stage": "PRE_REAL_FIT_IMMUTABLE_FREEZE",
+      "parameters": [
+        "shoulder_center_status_and_allowed_functional_or_proxy_owner",
+        "hip_center_status_and_allowed_functional_or_proxy_owner",
+        "torso_connection_status_and_allowed_functional_or_proxy_owner",
+        "foot_floor_and_head_rendering_status",
+        "forbidden_old_006m_022m_018_022_026m_and_axial_values"
+      ]
+    },
+    {
+      "group_id": "CAPTURE_WIDE_STOCHASTIC_INPUT_STATE",
+      "freeze_stage": "P1_NOISE_PRIMARY_METHOD_AND_INDEPENDENT_SYNTHETIC",
+      "parameters": [
+        "gyro_bias_rad_s_per_node_axis",
+        "gyro_observation_noise_covariance_per_node",
+        "gyro_bias_covariance_per_node",
+        "accelerometer_noise_covariance_per_node",
+        "accelerometer_and_gyro_scale_factor_uncertainty",
+        "cross_axis_and_nonorthogonality_uncertainty",
+        "slow_bias_and_temperature_drift_sensitivity",
+        "timestamp_jitter_and_trigger_cadence_uncertainty",
+        "raw_quantization_covariance",
+        "static_correlation_and_effective_sample_size",
+        "duplicate_gap_saturation_and_status_statistics",
+        "orientation_gap_process_noise_and_covariance_growth"
+      ]
+    },
+    {
+      "group_id": "CONTINUOUS_ORIENTATION_FRONTEND",
+      "freeze_stage": "PRE_REAL_FIT_IMMUTABLE_FREEZE",
+      "parameters": [
+        "vqf_version_and_public_settings",
+        "single_capture_wide_state_initialization",
+        "working_time_grid_or_native_timestamp_policy",
+        "qmt_equidistant_contiguous_span_time_adapter",
+        "missing_row_no_update_policy",
+        "maximum_interpolation_policy",
+        "orientation_covariance_representation"
+      ]
+    },
+    {
+      "group_id": "QMT_HINGE_AND_HEADING_OBSERVATIONS",
+      "freeze_stage": "PRE_REAL_FIT_IMMUTABLE_FREEZE",
+      "parameters": [
+        "qmt_version_revision_and_public_api",
+        "per_edge_joint_dof_and_primary_method_applicability_map",
+        "functional_axis_and_segment_frame_dependency",
+        "dense_contiguous_span_eligibility",
+        "result_independent_sample_selection_rule",
+        "selection_window_size_and_data_size",
+        "excitation_and_near_axis_information_statistics",
+        "qmt_multistarts_iterations_and_seed",
+        "upstream_start_stillness_rating_and_state_to_covariance_mapping",
+        "upstream_example_exact_alignment_flip_sign_and_heading_offset_nonreuse",
+        "rating_policy",
+        "deltaFilt_and_corrected_quaternion_observation_covariance",
+        "span_gap_no_update_process_model",
+        "four_hinge_axis_uncertainty_models"
+      ]
+    },
+    {
+      "group_id": "FUNCTIONAL_MOUNTS_CONNECTIONS_AND_AXES",
+      "freeze_stage": "REAL_FIT_OUTPUT_POSTERIOR_ONLY",
+      "parameters": [
+        "ten_full_SO3_sensor_to_segment_mounts",
+        "eighteen_full_3D_edge_connection_vectors",
+        "four_hinge_axes_with_sign_branches",
+        "four_shoulder_hip_functional_center_or_motion_subspace_blocks",
+        "shared_joint_connection_consistency",
+        "nonideal_hinge_axis_and_joint_center_migration_model",
+        "slow_mount_slippage_sensitivity_without_per_action_profiles",
+        "soft_tissue_and_model_error_covariance",
+        "mount_and_connection_posterior_covariance"
+      ]
+    },
+    {
+      "group_id": "GLOBAL_HEADING_GRAPH_AND_BRANCHES",
+      "freeze_stage": "REAL_FIT_OUTPUT_POSTERIOR_ONLY",
+      "parameters": [
+        "nine_persistent_relative_heading_states",
+        "one_pelvis_yaw_gauge_value",
+        "official_parent_child_delta_tree_propagation",
+        "bespoke_global_heading_solver_default_forbidden",
+        "qmt_observation_weights_and_covariances",
+        "heading_gap_process_noise",
+        "branch_ids_priors_weights_and_rejection_causes",
+        "branch_retention_and_concentration_rule"
+      ]
+    },
+    {
+      "group_id": "PHYSICAL_MANIFOLD_AND_ROM",
+      "freeze_stage": "PRE_REAL_FIT_IMMUTABLE_FREEZE",
+      "parameters": [
+        "proper_rotation_tolerance",
+        "shared_joint_connectivity_tolerance",
+        "left_right_crossing_and_separation_rule",
+        "knee_front_back_split_rule",
+        "proximal_distal_topology_and_gravity_rule",
+        "per_joint_human_ROM_manifold_and_uncertainty",
+        "minor_rom_excursion_stochastic_vs_gross_impossibility_gate",
+        "collapse_and_torso_compression_rule",
+        "candidate_only_consequence_mapping"
+      ]
+    },
+    {
+      "group_id": "RESIDUAL_COVARIANCE_AND_ROBUST_LOSS",
+      "freeze_stage": "PRE_REAL_FIT_IMMUTABLE_FREEZE",
+      "parameters": [
+        "joint_center_specific_force_residual_covariance",
+        "hinge_axis_residual_covariance",
+        "heading_observation_covariance",
+        "static_correlation_block_model",
+        "soft_tissue_artifact_model",
+        "robust_loss_family_and_scale",
+        "heldout_normalization_and_blocking"
+      ]
+    },
+    {
+      "group_id": "PROGRESSIVE_INFORMATION_AND_ACCEPTANCE",
+      "freeze_stage": "PRE_REAL_FIT_IMMUTABLE_FREEZE",
+      "parameters": [
+        "gauge_reduced_rank_and_information_metrics",
+        "posterior_uncertainty_metrics",
+        "branch_concentration_metric",
+        "physical_validity_metric",
+        "prequential_prediction_scored_before_ingest_metric",
+        "post_freeze_sealed_heldout_evidence_metric",
+        "heldout_non_refit_firewall",
+        "progress_decrease_on_conflict_rule",
+        "readiness_rule",
+        "progressive_to_fresh_batch_equivalence_metric_and_tolerance"
+      ]
+    },
+    {
+      "group_id": "INDEPENDENT_SYNTHETIC_QUALIFICATION",
+      "freeze_stage": "P1_NOISE_PRIMARY_METHOD_AND_INDEPENDENT_SYNTHETIC",
+      "parameters": [
+        "positive_case_distributions_and_seeds",
+        "human_variability_and_asymmetry_distributions",
+        "mount_and_3D_offset_distributions",
+        "noise_bias_scale_cross_axis_quantization_correlation_gap_jitter_and_drift_distributions",
+        "soft_tissue_slippage_axis_migration_and_nonideal_hinge_distributions",
+        "degeneracy_and_order_permutations",
+        "mandatory_negative_mutation_matrix",
+        "truth_error_and_rejection_metrics",
+        "qualification_pass_rule"
+      ]
+    },
+    {
+      "group_id": "SOLVER_AND_NUMERICAL_CONTROL",
+      "freeze_stage": "PRE_REAL_FIT_IMMUTABLE_FREEZE",
+      "parameters": [
+        "solver_family_and_parameterization",
+        "mature_reference_mechanism_first_and_bespoke_capability_gate",
+        "variable_scaling",
+        "finite_difference_or_analytic_jacobian_policy",
+        "step_and_convergence_tolerances",
+        "per_stage_iteration_and_wall_limits",
+        "multistarts_full_circle_sector_count",
+        "parallel_worker_count",
+        "random_seeds",
+        "stall_nonfinite_and_timeout_diagnostics",
+        "bounded_hypothesis_test_and_pivot_rule"
+      ]
+    },
+    {
+      "group_id": "VIEWER_GEOMETRY_AND_PRESENTATION_GAUGES",
+      "freeze_stage": "PRE_REAL_FIT_IMMUTABLE_FREEZE",
+      "parameters": [
+        "sensor_segment_diagnostic_geometry",
+        "anatomical_or_landmark_proxy_skeleton_geometry",
+        "wrist_ankle_shoulder_hip_chest_and_pelvis_point_definitions",
+        "missing_foot_head_and_floor_representation",
+        "root_translation_and_pelvis_yaw_display_gauges",
+        "identical_ABC_camera_and_axis_conventions",
+        "downsample_and_scene_timestamp_selection",
+        "front_side_top_camera_parameters",
+        "proxy_labels_and_uncertainty_display"
+      ]
+    }
+  ],
+  "completion_gates": {
+    "all_groups_present": "__REQUIRED_BOOLEAN__",
+    "all_concrete_parameters_have_required_fields": "__REQUIRED_BOOLEAN__",
+    "placeholder_count": "__REQUIRED_ZERO__",
+    "numeric_source_config_default_scan_path": "__REQUIRED__",
+    "numeric_source_config_default_scan_sha256": "__REQUIRED__",
+    "unregistered_real_fit_parameter_count": "__REQUIRED_ZERO__",
+    "unregistered_viewer_parameter_count": "__REQUIRED_ZERO__",
+    "legacy_parameter_consumption_count": "__REQUIRED_ZERO__",
+    "frozen_before_first_real_fit": "__REQUIRED_BOOLEAN__",
+    "immutable_registry_sha256": "__REQUIRED__"
+  }
+}

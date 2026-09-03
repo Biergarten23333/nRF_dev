@@ -13,6 +13,7 @@ from biospur_fusion.imu.preintegration import ImuSample
 from biospur_fusion.root_r6a0.body import BodyModel, KeyframeState, StaticCalibration
 from biospur_fusion.root_r6a0.factors import raw_range_value
 from biospur_fusion.root_r6a0.math3d import so3_log
+from biospur_fusion.root_r6a1c.adapter import CORRECT_NODE_MAP
 from biospur_fusion.root_r6a2a.shadow import (
     GRAVITY_W,
     build_synthetic_calibration,
@@ -334,7 +335,10 @@ def generate_run(
 ) -> GeneratedRun:
     """Generate all private source data, then expose only EstimatorInput rows."""
     fusion = Path(fusion)
-    model = corrected_body_model(fusion)
+    model = corrected_body_model(
+        fusion, identity_mapping=CORRECT_NODE_MAP,
+        identity_provenance="SYNTHETIC_R6A2A_R2_CORRECTED_FORWARD_MAP",
+    )
     registry = registry_from_sealed_addendum(fusion)
     truth_calibration = build_synthetic_calibration(model, registry, geometry=scenario.geometry)
     if scenario.geometry == "LOW_VERTICAL_DIVERSITY":

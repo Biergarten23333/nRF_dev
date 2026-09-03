@@ -1,0 +1,123 @@
+{
+  "schema": "biospur-c2-coupled-progressive-v1",
+  "scope": {
+    "capture": "C2_ONLY",
+    "raw_fields": ["accelerometer", "gyroscope", "timestamp", "boot_epoch", "sequence", "status"],
+    "forbidden": ["magnetometer", "uwb_spatial", "vendor_quaternion", "global_quaternion", "locked_quaternion", "ik", "pose_truth", "cross_capture_state", "per_action_profile"]
+  },
+  "node_to_segment": {
+    "BSFEC35": "forearm_left",
+    "BSFB165": "forearm_right",
+    "BSFAA61": "upper_arm_left",
+    "BSF1120": "upper_arm_right",
+    "BSF31CC": "torso",
+    "BSFC2CC": "pelvis",
+    "BSF44AD": "thigh_left",
+    "BSF3C79": "thigh_right",
+    "BSF6C53": "shank_left",
+    "BSF8BC4": "shank_right"
+  },
+  "edges": [
+    ["pelvis", "torso"],
+    ["torso", "upper_arm_left"],
+    ["upper_arm_left", "forearm_left"],
+    ["torso", "upper_arm_right"],
+    ["upper_arm_right", "forearm_right"],
+    ["pelvis", "thigh_left"],
+    ["thigh_left", "shank_left"],
+    ["pelvis", "thigh_right"],
+    ["thigh_right", "shank_right"]
+  ],
+  "hinges": {
+    "elbow_left": ["upper_arm_left", "forearm_left"],
+    "elbow_right": ["upper_arm_right", "forearm_right"],
+    "knee_left": ["thigh_left", "shank_left"],
+    "knee_right": ["thigh_right", "shank_right"]
+  },
+  "architecture": {
+    "continuous_orientation_instances": 10,
+    "episode_reset_count": 0,
+    "persistent_posterior_instances": 1,
+    "relative_heading_state_count": 9,
+    "pelvis_yaw_gauge_count": 1,
+    "generic_window_evaluator_accepts_action_name": false,
+    "all_valid_windows_evaluated_for_all_incident_edges": true,
+    "time_varying_quat2corr_consumed": true,
+    "time_varying_delta_filt_consumed": true,
+    "sensor_origin_is_joint_or_display_point": false,
+    "prefix_batch_refits": false,
+    "per_action_profiles_or_stitching": false,
+    "physical_feasibility_before_residual_ranking": true
+  },
+  "selection": {
+    "window_s": 1.0,
+    "stride_s": 0.5,
+    "minimum_valid_fraction": 0.8,
+    "minimum_effective_rows": 24,
+    "information_floor_fraction": 0.001,
+    "selection_inputs": ["relative_gyro_covariance", "dynamic_acceleration_covariance", "still_noise_covariance", "valid_fraction"],
+    "selection_forbidden_inputs": ["action_name", "desired_axis", "desired_pose", "fit_residual", "branch_result"]
+  },
+  "wear_prior": {
+    "minus_y": "approximately_down_for_all_nodes",
+    "minus_z_by_node": {
+      "BSFEC35": "left",
+      "BSFB165": "right",
+      "BSFAA61": "left_rear_posterior_dominant",
+      "BSF1120": "right_rear_posterior_dominant",
+      "BSF31CC": "forward",
+      "BSFC2CC": "forward",
+      "BSF44AD": "forward",
+      "BSF3C79": "forward",
+      "BSF6C53": "left",
+      "BSF8BC4": "right"
+    },
+    "interpretation": "broad_probabilistic_likelihood_with_opposite_hemisphere_guard",
+    "broadness_sensitivity_deg": [40.0, 55.0, 70.0, 89.0],
+    "exact_rotation_or_hard_mirror": false
+  },
+  "proxy_geometry": {
+    "role": "fixed_uncertain_landmark_proxy_not_internal_anatomy",
+    "forearm_left_m": {"raw_observations": [0.245, [0.260, 0.265]], "nominal": 0.255, "interval_95": [0.238, 0.272]},
+    "forearm_right_m": {"raw_observations": [0.245, [0.260, 0.265]], "nominal": 0.255, "interval_95": [0.238, 0.272]},
+    "upper_arm_left_m": {"raw_observations": [0.310, 0.325], "nominal": 0.3175, "interval_95": [0.295, 0.340]},
+    "upper_arm_right_m": {"raw_observations": [0.310, 0.325], "nominal": 0.3175, "interval_95": [0.295, 0.340]},
+    "thigh_left_m": {"raw_observations": [0.480], "nominal": 0.480, "interval_95": [0.450, 0.510]},
+    "thigh_right_m": {"raw_observations": [0.480], "nominal": 0.480, "interval_95": [0.450, 0.510]},
+    "shank_left_m": {"raw_observations": [0.430], "nominal": 0.430, "interval_95": [0.400, 0.460]},
+    "shank_right_m": {"raw_observations": [0.430], "nominal": 0.430, "interval_95": [0.400, 0.460]},
+    "acromion_proxy_span_m": {"raw_observations": [0.400, 0.425], "nominal": 0.4125, "interval_95": [0.380, 0.445]},
+    "trochanter_proxy_span_m": {"raw_observations": [0.335], "nominal": 0.335, "interval_95": [0.300, 0.370]},
+    "pelvis_to_acromion_line_proxy_m": {"raw_components": {"pelvis_sensor_to_chest_sensor": 0.280, "chest_sensor_to_acromion_line": [0.140, 0.150]}, "nominal": 0.425, "interval_95": [0.360, 0.490]},
+    "surface_values_called_internal_joint_truth": false,
+    "hard_bilateral_symmetry": false
+  },
+  "robust_statistics": {
+    "block_seconds": 1.0,
+    "loss": "huber",
+    "huber_scale_sigma": 1.5,
+    "static_correlation_effective_sample_cap_per_second": 12.0,
+    "weak_information_action": "downweight_and_report"
+  },
+  "solver_budgets": {
+    "synthetic_wall_s": 120.0,
+    "frontend_wall_s": 180.0,
+    "factor_wall_s": 180.0,
+    "coupled_update_wall_s": 300.0,
+    "render_wall_s": 60.0,
+    "real_total_wall_s": 1800.0,
+    "target_mature_real_wall_s": [120.0, 600.0],
+    "maximum_iterations": 80,
+    "multistarts": 1,
+    "workers": 1
+  },
+  "acceptance": {
+    "incremental_batch_mahalanobis_per_dof_max": 2.0,
+    "order_final_information_relative_tolerance": 1e-10,
+    "minimum_final_gauge_reduced_rank_fraction": 0.8,
+    "front_back_knee_split_allowed": false,
+    "crossing_allowed": false,
+    "collapse_allowed": false,
+    "disconnected_allowed": false
+  }
+}

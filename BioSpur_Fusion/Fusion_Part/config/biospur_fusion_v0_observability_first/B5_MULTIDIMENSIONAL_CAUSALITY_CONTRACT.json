@@ -1,0 +1,221 @@
+{
+  "schema": "biospur-pure-imu-v0-b5-multidimensional-causality-contract-v1",
+  "frozen_before_qualification_replay": true,
+  "acceptance_scope": "synthetic Milestone B5 action-family causality only",
+  "legacy_gate": {
+    "name": "universal_single_weakest_singular_value_loss",
+    "minimum_loss_fraction": 0.02,
+    "preserve_as_reported_evidence": true,
+    "acceptance_authority_after_this_audit": false,
+    "reason": "A family can add covariance-normalized information in already-observed directions while redundancy leaves the one globally weakest singular direction unchanged. The metric is therefore non-monotonic as a universal causal-necessity test."
+  },
+  "lineage_rules": {
+    "rank_rows": "measurement and protocol-conditioned measurement residuals; parameter-only priors excluded",
+    "covariance_normalization": "all Jacobian rows are residual derivatives after declared covariance, robust-scale, and per-action square-root row-count normalization",
+    "profile_method": "SVD left-null projection of nuisance coordinates; no normal equations",
+    "targeted_subspace": "declared product coordinates conditioned on every other product and nuisance coordinate",
+    "bounds_or_priors_may_supply_rank": false,
+    "truth_may_enter_estimation_or_rank": false
+  },
+  "thresholds": {
+    "minimum_targeted_weak_subspace_loss_fraction": 0.02,
+    "minimum_redundant_log_information_gain_nats": 0.1,
+    "minimum_sign_handedness_margin_cost": 5.0,
+    "maximum_ablated_recovery_rmse_deg": 6.0,
+    "maximum_ablated_global_disagreement_deg": 3.0
+  },
+  "classification_semantics": {
+    "CORE_IDENTIFICATION": "Removal must cause global rank loss, nine-heading conditional-rank loss, declared-target conditional-rank loss, at least 2% loss in the declared target's weakest identifiable singular value, a declared sign-margin failure, or recovery/global-agreement failure.",
+    "REDUNDANT_ROBUSTNESS": "Removal must reduce covariance-normalized profiled-product log information by the declared threshold, or degrade a predeclared held-out noisy/weak-motion robustness test. It need not move the single globally weakest singular direction.",
+    "DIAGNOSTIC_ONLY": "No calibration-necessity claim is made and removal is not an acceptance failure."
+  },
+  "families": [
+    {
+      "family": "STATIC_INITIAL",
+      "classification": "CORE_IDENTIFICATION",
+      "remove_actions": ["initial_still_attempt2"],
+      "residual_target": "capture-defined neutral joint zeros and gravity-referenced sensor longitudinal axes under a latent relaxed pose",
+      "target_coordinate_names": [],
+      "target_coordinate_blocks": ["SENSOR_LONGITUDINAL_AXIS", "JOINT_NEUTRAL_ZERO"],
+      "sign_alternatives": []
+    },
+    {
+      "family": "STATIC_TPOSE",
+      "classification": "CORE_IDENTIFICATION",
+      "remove_actions": ["t_pose"],
+      "residual_target": "separate latent T-pose directions, bilateral semantics, and all nine pelvis-relative segment headings",
+      "target_coordinate_names": [],
+      "target_coordinate_blocks": ["EFFECTIVE_RELATIVE_HEADING"],
+      "sign_alternatives": ["flip_trunk_flex_and_lateral", "flip_trunk_lateral_and_axial"]
+    },
+    {
+      "family": "BILATERAL_ARMS",
+      "classification": "CORE_IDENTIFICATION",
+      "remove_actions": ["arms"],
+      "residual_target": "torso-to-upper-arm and upper-arm-to-forearm heading connectivity plus bilateral shoulder/elbow functional axes",
+      "target_coordinate_names": [
+        "effective_heading:upper_arm_L",
+        "effective_heading:upper_arm_R",
+        "effective_heading:forearm_L",
+        "effective_heading:forearm_R",
+        "functional_axis:shoulder_L",
+        "functional_axis:shoulder_R",
+        "functional_axis:elbow_L",
+        "functional_axis:elbow_R"
+      ],
+      "target_coordinate_blocks": [],
+      "sign_alternatives": [
+        "flip_functional_axis:shoulder_L",
+        "flip_functional_axis:shoulder_R",
+        "flip_functional_axis:elbow_L",
+        "flip_functional_axis:elbow_R"
+      ]
+    },
+    {
+      "family": "COMPOUND_ELBOWS",
+      "classification": "CORE_IDENTIFICATION",
+      "remove_actions": ["left_elbow", "right_elbow_attempt2"],
+      "residual_target": "non-collinear curl/pronation constraints for forearm headings, elbow axes, and neutral zeros",
+      "target_coordinate_names": [
+        "effective_heading:forearm_L",
+        "effective_heading:forearm_R",
+        "functional_axis:elbow_L",
+        "functional_axis:elbow_R",
+        "joint_zero:elbow_L",
+        "joint_zero:elbow_R"
+      ],
+      "target_coordinate_blocks": [],
+      "sign_alternatives": ["flip_functional_axis:elbow_L", "flip_functional_axis:elbow_R"]
+    },
+    {
+      "family": "UNILATERAL_HIPS",
+      "classification": "CORE_IDENTIFICATION",
+      "remove_actions": ["left_knee", "right_knee", "b3_bilateral_hip_circumduction_two_axis"],
+      "residual_target": "pelvis-to-thigh headings, bilateral hip functional axes, and hip neutral zeros",
+      "target_coordinate_names": [
+        "effective_heading:thigh_L",
+        "effective_heading:thigh_R",
+        "functional_axis:hip_L",
+        "functional_axis:hip_R",
+        "joint_zero:hip_L",
+        "joint_zero:hip_R"
+      ],
+      "target_coordinate_blocks": [],
+      "sign_alternatives": ["flip_functional_axis:hip_L", "flip_functional_axis:hip_R"]
+    },
+    {
+      "family": "UNILATERAL_KNEES",
+      "classification": "CORE_IDENTIFICATION",
+      "remove_actions": [
+        "left_heel",
+        "right_heel",
+        "b3_left_seated_knee_flexion_tibial_axial",
+        "b3_right_seated_knee_flexion_tibial_axial"
+      ],
+      "residual_target": "thigh-to-shank headings, bilateral knee functional axes, and knee neutral zeros",
+      "target_coordinate_names": [
+        "effective_heading:shank_L",
+        "effective_heading:shank_R",
+        "functional_axis:knee_L",
+        "functional_axis:knee_R",
+        "joint_zero:knee_L",
+        "joint_zero:knee_R"
+      ],
+      "target_coordinate_blocks": [],
+      "sign_alternatives": ["flip_functional_axis:knee_L", "flip_functional_axis:knee_R"]
+    },
+    {
+      "family": "TRUNK_NONCOLLINEAR",
+      "classification": "CORE_IDENTIFICATION",
+      "remove_actions": ["trunk", "b3_trunk_labelled_left_right_lateral_bend"],
+      "residual_target": "pelvis-to-torso heading, right-handed trunk functional frame, and trunk neutral zero",
+      "target_coordinate_names": ["effective_heading:torso", "trunk_functional_frame", "joint_zero:trunk"],
+      "target_coordinate_blocks": [],
+      "sign_alternatives": ["flip_trunk_flex_and_lateral", "flip_trunk_lateral_and_axial"]
+    },
+    {
+      "family": "BILATERAL_SQUAT",
+      "classification": "REDUNDANT_ROBUSTNESS",
+      "remove_actions": ["squats"],
+      "residual_target": "bilateral repeated hip/knee connectivity and sagittal-reflection robustness over the lower chain",
+      "target_coordinate_names": [],
+      "target_coordinate_blocks": ["EFFECTIVE_RELATIVE_HEADING", "LIMB_FUNCTIONAL_AXIS"],
+      "sign_alternatives": []
+    },
+    {
+      "family": "B3_HIP_CIRCUMDUCTION_ONLY",
+      "classification": "REDUNDANT_ROBUSTNESS",
+      "remove_actions": ["b3_bilateral_hip_circumduction_two_axis"],
+      "residual_target": "additional bilateral two-axis hip-plane and sagittal-reflection information beyond the primary hip actions",
+      "target_coordinate_names": [
+        "effective_heading:thigh_L",
+        "effective_heading:thigh_R",
+        "functional_axis:hip_L",
+        "functional_axis:hip_R"
+      ],
+      "target_coordinate_blocks": [],
+      "sign_alternatives": []
+    },
+    {
+      "family": "B3_KNEE_FLEXION_AXIAL_ONLY",
+      "classification": "REDUNDANT_ROBUSTNESS",
+      "remove_actions": [
+        "b3_left_seated_knee_flexion_tibial_axial",
+        "b3_right_seated_knee_flexion_tibial_axial"
+      ],
+      "residual_target": "additional non-collinear flexion and tibial-axial knee information beyond the primary knee actions",
+      "target_coordinate_names": [
+        "effective_heading:shank_L",
+        "effective_heading:shank_R",
+        "functional_axis:knee_L",
+        "functional_axis:knee_R"
+      ],
+      "target_coordinate_blocks": [],
+      "sign_alternatives": []
+    },
+    {
+      "family": "B3_TRUNK_LATERAL_LABELLED_ONLY",
+      "classification": "REDUNDANT_ROBUSTNESS",
+      "remove_actions": ["b3_trunk_labelled_left_right_lateral_bend"],
+      "residual_target": "labelled lateral-bend direction and extra trunk-frame handedness information beyond the non-collinear trunk action",
+      "target_coordinate_names": ["effective_heading:torso", "trunk_functional_frame"],
+      "target_coordinate_blocks": [],
+      "sign_alternatives": []
+    },
+    {
+      "family": "B4_EN_BLOC_COMMON_RATE",
+      "classification": "REDUNDANT_ROBUSTNESS",
+      "remove_actions": ["b4_supported_braced_en_bloc_two_axis"],
+      "residual_target": "whole-car relative-heading coupling from two non-collinear simultaneous common-rate phases; redundant with articulated six-axis joint-center connectivity after B5",
+      "target_coordinate_names": [],
+      "target_coordinate_blocks": ["EFFECTIVE_RELATIVE_HEADING"],
+      "sign_alternatives": []
+    },
+    {
+      "family": "B5_JOINT_CENTER_SPECIFIC_FORCE",
+      "classification": "REDUNDANT_ROBUSTNESS",
+      "remove_actions": [],
+      "remove_factor_prefixes": ["b5_joint_center_specific_force_closure"],
+      "residual_target": "independent accelerometer/gyro joint-center closure for sensor axes and headings after profiling capture-shared sensor-to-joint lever nuisances",
+      "target_coordinate_names": [],
+      "target_coordinate_blocks": ["SENSOR_LONGITUDINAL_AXIS", "EFFECTIVE_RELATIVE_HEADING"],
+      "sign_alternatives": []
+    },
+    {
+      "family": "RETURN_CONSISTENCY_AND_FINAL_STILL",
+      "classification": "DIAGNOSTIC_ONLY",
+      "remove_actions": ["final_still"],
+      "remove_factor_prefixes": ["return_consistency"],
+      "residual_target": "drift and same-rest eligibility diagnostics only; no heading-observability or calibration-necessity claim",
+      "target_coordinate_names": [],
+      "target_coordinate_blocks": [],
+      "sign_alternatives": []
+    }
+  ],
+  "classification_freeze_basis": {
+    "outcome_blind_rule": "classification follows the declared physical residual target and whether another retained family directly observes the same product block",
+    "b4_history_preserved": "B4 was core-identifying relative to B3; after adding B5 it is a separately measured redundant route to the same heading-connectivity block. Its B4-stage causal evidence remains authoritative and is not reclassified retroactively.",
+    "b5_basis": "B5 introduces no new publishable product coordinate and profiles 54 lever nuisance coordinates; it is an independent six-axis robustness route to existing mounting/heading blocks.",
+    "no_family_classified_from_observed_pass_or_fail": true
+  }
+}

@@ -1,0 +1,62 @@
+{
+  "algorithm_id": "BIOSPUR_EDGE_DIFFERENTIAL_YAW_RATE_ARRESTER_V1_1",
+  "configuration_schema": "biospur.pure_imu.stage3r1.corrector_config.v1",
+  "display_rate_hz": 60.0,
+  "stationarity": {
+    "source": "INHERITED_UNCHANGED_FROM_FROZEN_STAGE3",
+    "rolling_window_s": 0.5,
+    "minimum_duration_s": 2.0,
+    "gyro_rms_max_rad_s": 0.15,
+    "gyro_std_max_rad_s": 0.13,
+    "acc_norm_error_rms_max_g": 0.09,
+    "acc_norm_std_max_g": 0.08,
+    "gyro_saturation_rad_s": 34.0,
+    "acc_saturation_g": 15.5,
+    "maximum_native_gap_s": 0.0075
+  },
+  "edge_bias_estimator": {
+    "window_s": 8.0,
+    "minimum_support_s": 2.0,
+    "minimum_samples": 60,
+    "expected_samples_per_second": 60.0,
+    "update_stride_frames": 6,
+    "maximum_abs_bias_rad_s": 0.035,
+    "maximum_bias_step_rad_s": 0.00035,
+    "maximum_abs_observation_rad_s": 0.15,
+    "robust_mad_multiplier": 6.0,
+    "robust_minimum_scale_rad_s": 0.002,
+    "confidence_decay_s": 120.0,
+    "minimum_active_confidence": 0.45,
+    "full_rate_confidence": 0.55
+  },
+  "applied_correction": {
+    "maximum_abs_rate_rad_s": 0.035,
+    "maximum_abs_acceleration_rad_s2": 0.005,
+    "unwrapped": true,
+    "angle_modulo_or_wrapping": false,
+    "pelvis_gauge_correction_rad": 0.0,
+    "unsupported_edge_eta_rad": 0.0,
+    "float64_formal": true
+  },
+  "qualification": {
+    "material_stage3_excess_increment_rad": 0.05,
+    "continuity_tolerance_rad": 1e-6,
+    "gravity_tolerance": 1e-12,
+    "quaternion_norm_tolerance": 1e-12,
+    "bone_length_tolerance_m": 2e-6,
+    "stationary_improvement_minimum_fraction": 0.20,
+    "stationary_regression_maximum_fraction": 0.05,
+    "dynamic_correlation_minimum": 0.995,
+    "dynamic_amplitude_ratio_minimum": 0.98,
+    "dynamic_amplitude_ratio_maximum": 1.02,
+    "dynamic_peak_timing_maximum_frames": 1,
+    "dynamic_excursion_ratio_minimum": 0.95,
+    "dynamic_excursion_ratio_maximum": 1.05,
+    "viewer_float32_roundtrip_maximum": 5e-7
+  },
+  "derivation": {
+    "transition_and_application_limits": "FROZEN_FROM_SYNTHETIC_QUALIFICATION_ONLY_BEFORE_FORMAL_C123",
+    "capture_specific_parameters": false,
+    "qmt_or_joint_axis_constraints": false
+  }
+}

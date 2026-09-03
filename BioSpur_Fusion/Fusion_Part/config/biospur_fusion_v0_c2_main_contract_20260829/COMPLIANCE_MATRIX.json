@@ -1,0 +1,419 @@
+{
+  "schema": "biospur-c2-basis-progressive-main-compliance-v2",
+  "document_status": "USER_REVIEW_DRAFT_NOT_ACTIVATED",
+  "default_status": "UNVERIFIED_NOT_STARTED",
+  "consequence_classes": {
+    "A": "Stop the current run, preserve evidence, repair/reseal, and continue the overall task. Not terminal scientific FAIL by itself.",
+    "B": "Reject the candidate/branch only and continue legal branches. Never soften physical impossibility.",
+    "C": "Propagate covariance/information/weight or report uncertainty/conflict. Do not stop by itself.",
+    "D": "Log and continue unless a separate Class A invariant is violated."
+  },
+  "requirements": [
+    {
+      "id": "LIFE-001",
+      "owner": "run lifecycle",
+      "consequence": "A",
+      "requirement": "Formal execution requires a later explicit user start command; this review package alone is not authorization.",
+      "required_evidence": "explicit activation message and immutable reviewed-contract hashes"
+    },
+    {
+      "id": "LIFE-002",
+      "owner": "run lifecycle",
+      "consequence": "A",
+      "requirement": "Use only the canonical Fusion_Part path; no branch, worktree, checkout copy, repository copy, or raw-data copy.",
+      "required_evidence": "resolved cwd, worktree audit, write-path audit"
+    },
+    {
+      "id": "LIFE-003",
+      "owner": "run lifecycle",
+      "consequence": "A",
+      "requirement": "English WORK is sole writer; Chinese monitor is strictly read-only and sends direct STEER only.",
+      "required_evidence": "task IDs, host, write audit, monitor declaration"
+    },
+    {
+      "id": "LIFE-004",
+      "owner": "resources",
+      "consequence": "A",
+      "requirement": "Require at least 100 GB free on /mnt/nrf_ssd, 40 GB on root, and projected growth no greater than 5 GB.",
+      "required_evidence": "pre/post df and run-directory size"
+    },
+    {
+      "id": "LIFE-005",
+      "owner": "evidence lifecycle",
+      "consequence": "A",
+      "requirement": "Never overwrite/delete/repair historical seals, reports, raw data, FAIL evidence, or prior contracts; amendments are append-only.",
+      "required_evidence": "pre/post hashes and append-only manifest"
+    },
+    {
+      "id": "SCOPE-001",
+      "owner": "dataset authority",
+      "consequence": "A",
+      "requirement": "Only Capture 2 is scientific input; C1/C3/Hxx/Capture3/Golf/Boxing/other captures are forbidden.",
+      "required_evidence": "resolved dataset root and access log"
+    },
+    {
+      "id": "SCOPE-002",
+      "owner": "identity authority",
+      "consequence": "A",
+      "requirement": "All ten authoritative hardware IDs occur exactly once with the reviewed segment mapping; legacy alias conflicts fail closed.",
+      "required_evidence": "identity table and conflict scan"
+    },
+    {
+      "id": "SCOPE-003",
+      "owner": "input firewall",
+      "consequence": "A",
+      "requirement": "Decode only raw accelerometer/gyroscope plus timing/status; forbid magnetometer, UWB spatial fields, vendor/prior quaternion, Euler pose, IK, profile, freeze, and candidate lock.",
+      "required_evidence": "decoder field audit and forbidden-import scan"
+    },
+    {
+      "id": "SCOPE-004",
+      "owner": "preselection lifecycle",
+      "consequence": "A",
+      "requirement": "Before payload open/hash, create immutable run-start contract, passing validator, fresh metadata-only preselection, action allowlist, byte-access plan, and authority hashes.",
+      "required_evidence": "sealed files timestamped before first payload access"
+    },
+    {
+      "id": "SCOPE-005",
+      "owner": "holdout firewall",
+      "consequence": "A",
+      "requirement": "Do not enumerate/open/hash/stat-for-content any holdout path to construct exclusions; holdout/00_walk, H01_boxing, and H02_golf are forbidden by default.",
+      "required_evidence": "file-access trace and allowlist-only range construction"
+    },
+    {
+      "id": "SCOPE-006",
+      "owner": "holdout lifecycle",
+      "consequence": "A",
+      "requirement": "Default held-out evidence is result-independent withheld blocks within allowed C2 actions; any external holdout needs exact later authorization after fit freeze and cannot trigger refit.",
+      "required_evidence": "pre-fit holdout hash/selection and fit-freeze timestamp"
+    },
+    {
+      "id": "INPUT-001",
+      "owner": "C2-to-QMT input",
+      "consequence": "A",
+      "requirement": "Bind B306 v47 direct signed-little-endian AX/AY/AZ/GX/GY/GZ register order with no permutation or sign flip.",
+      "required_evidence": "firmware/source/provenance hashes and decoder unit test"
+    },
+    {
+      "id": "INPUT-002",
+      "owner": "C2-to-QMT input",
+      "consequence": "A",
+      "requirement": "Use acc=raw/2048*9.80665 m/s^2 and gyro=raw/16.384 deg/s converted to rad/s; retain gravity.",
+      "required_evidence": "unit tests, still-gravity distribution, source citations"
+    },
+    {
+      "id": "INPUT-003",
+      "owner": "C2-to-QMT input",
+      "consequence": "C",
+      "requirement": "Treat JY61P accelerometer range as internally adaptive with fixed documented output convention; absence of a B306 range write is not a failure.",
+      "required_evidence": "bound official protocol and saturation diagnostics"
+    },
+    {
+      "id": "INPUT-004",
+      "owner": "quaternion semantics",
+      "consequence": "A",
+      "requirement": "QMT quaternion storage/order/direction and every QMT-SciPy-viewer conversion pass source-level numerical round-trip before use.",
+      "required_evidence": "wxyz active/passive round-trip tests"
+    },
+    {
+      "id": "INPUT-005",
+      "owner": "sensor health",
+      "consequence": "C",
+      "requirement": "Use existing C2 gravity/bias/noise/finite/saturation checks as diagnostics and model or sensitivity-test bias drift, scale-factor/cross-axis error, quantization, correlation, timestamp jitter, gaps and duplicates; ordinary nonideality does not require new hardware tests or recapture.",
+      "required_evidence": "per-node distributions, clipping/gap/duplicate counts, stochastic parameter registry and nonideal-sensor mutations"
+    },
+    {
+      "id": "TIME-001",
+      "owner": "persistent orientation frontend",
+      "consequence": "A",
+      "requirement": "One capture-wide streaming six-axis orientation state per node; no episode-boundary VQF/QMT restart or new yaw gauge.",
+      "required_evidence": "state lifecycle trace and zero reset count"
+    },
+    {
+      "id": "TIME-002",
+      "owner": "timebase",
+      "consequence": "C",
+      "requirement": "Recorded timestamps are authoritative; missing rows are no-update with uncertainty, not fabricated samples or whole-capture failure.",
+      "required_evidence": "gap masks, relevant-window overlap, covariance growth"
+    },
+    {
+      "id": "TIME-003",
+      "owner": "timebase",
+      "consequence": "A",
+      "requirement": "Long gaps are never interpolated; interpolation is off by default and requires independent synthetic qualification and preregistration.",
+      "required_evidence": "interpolation policy and synthetic mutation"
+    },
+    {
+      "id": "MOUNT-001",
+      "owner": "mount prior",
+      "consequence": "C",
+      "requirement": "Reviewed -Y/-Z directions may construct a right-handed nominal frame, but remain a broad non-compact directional distribution with uncertainty and multiple legal branches; no arbitrary numeric cone is a hard gate.",
+      "required_evidence": "nominal-frame derivation, directional distribution, near-uninformative hemisphere-supported sensitivity"
+    },
+    {
+      "id": "MOUNT-002",
+      "owner": "branch manager",
+      "consequence": "B",
+      "requirement": "Only gross wrong wear hemisphere is hard rejection; exact vectors, hard mirror symmetry, and arbitrary small correction locks are forbidden.",
+      "required_evidence": "branch inventory and mount-prior mutation tests"
+    },
+    {
+      "id": "QMT-001",
+      "owner": "open-source mechanism",
+      "consequence": "A",
+      "requirement": "Bind pinned official QMT v0.2.4 algorithm revision and preserve official outputs, but do not treat advanced-example exact alignment, manual sign/flip/heading, ROM, start/stillness ratings, windows or solver settings as C2 truth; do not rerun a standalone one-hour bootstrap.",
+      "required_evidence": "pinned revision/license, prior diagnostic attribution, and upstream-example parameter disposition table"
+    },
+    {
+      "id": "QMT-002",
+      "owner": "gap-aware heading observations",
+      "consequence": "A",
+      "requirement": "Only after functional joint/frame inputs exist, run official headingCorrection on preregistered dense valid spans and preserve timestamped deltaFilt, corrected child quaternion, rating, state, and debug evidence; bind the equidistant-span time adapter without fabricating samples.",
+      "required_evidence": "dependency trace, cadence/span selection, output hashes, ratings/states, time-variance audit"
+    },
+    {
+      "id": "QMT-003",
+      "owner": "global heading state",
+      "consequence": "A",
+      "requirement": "Retain QMT outputs in persistent chronological edge states and propagate the rooted nine-edge tree using official parent-plus-child delta semantics; spans are not independent profiles or gauges and a bespoke global nonlinear heading solver is not the default.",
+      "required_evidence": "edge-state update trace, official-style tree propagation test, gap no-update trace, zero per-span profile count"
+    },
+    {
+      "id": "QMT-004",
+      "owner": "trajectory consumer",
+      "consequence": "A",
+      "requirement": "Factors, refinement, progressive state, held-out evaluation, and viewer consume the same final time-varying corrected trajectory; never discard quat2Corr or average deltaFilt to a seed.",
+      "required_evidence": "trajectory hashes at every consumer boundary"
+    },
+    {
+      "id": "QMT-005",
+      "owner": "functional sample selection",
+      "consequence": "C",
+      "requirement": "QMT row selection is preregistered, result-independent, excitation/noise/covariance aware, and distribution/effective-support audited; no desired-row cherry-picking.",
+      "required_evidence": "selection rule, all selected indices, excitation/noise plots, effective sample size"
+    },
+    {
+      "id": "FUNC-001",
+      "owner": "functional calibration",
+      "consequence": "A",
+      "requirement": "All ten sensor-to-segment rotations are full SO(3) posterior states/branches estimated from C2 functional evidence under broad non-compact wear distributions; weak directions remain uncertain rather than being exactized.",
+      "required_evidence": "parameter inventory, branch covariance, identifiability/broadness sensitivity, synthetic recovery"
+    },
+    {
+      "id": "FUNC-002",
+      "owner": "functional geometry",
+      "consequence": "A",
+      "requirement": "Sensor-to-joint and connection vectors occupy full 3D space; axial-on-bone scalar placement is forbidden.",
+      "required_evidence": "3D parameterization, Seel/Olsson/QMT attribution, off-axis mutations"
+    },
+    {
+      "id": "FUNC-003",
+      "owner": "factor routing",
+      "consequence": "A",
+      "requirement": "Each knee uses its seated raise, squat, and side-matched heel-to-butt; rest alone cannot qualify an axis.",
+      "required_evidence": "factor-to-episode routing and selected-row distributions"
+    },
+    {
+      "id": "GEOM-001",
+      "owner": "measured geometry",
+      "consequence": "A",
+      "requirement": "Preserve raw external anthropometry and observer disagreement; V0 does not ask IMUs to rediscover absolute bone lengths.",
+      "required_evidence": "measurement provenance and used-parameter table"
+    },
+    {
+      "id": "GEOM-002",
+      "owner": "internal geometry mapping",
+      "consequence": "A",
+      "requirement": "Do not equate external breadths/surface chords/sensor distances with internal joint-center geometry without a primary mapping and propagated uncertainty.",
+      "required_evidence": "mapping citations, required inputs, uncertainty propagation"
+    },
+    {
+      "id": "GEOM-003",
+      "owner": "geometry",
+      "consequence": "A",
+      "requirement": "No invented torso length, hip spacing, 6 cm offset, centered sensor, hard symmetry, hidden standard adult, or zero branch spacing.",
+      "required_evidence": "geometry source audit and zero/invented-geometry mutations"
+    },
+    {
+      "id": "GEOM-004",
+      "owner": "raw anthropometry binding",
+      "consequence": "A",
+      "requirement": "Bind every exact surface/sensor observation and landmark definition. Preserve the original unlabeled 260–265 mm forearm record and apply the append-only user clarification that the same range belongs to both sides; no silent midpoint, deletion of 245 mm readings, or relabeling as internal bone truth.",
+      "required_evidence": "GEOMETRY_AND_PARAMETER_CONTRACT.json plus USER_ANTHROPOMETRY_AMENDMENT_001.json versus anthropometry structural comparison"
+    },
+    {
+      "id": "GEOM-005",
+      "owner": "scale and uncertainty",
+      "consequence": "A",
+      "requirement": "Before real fit, freeze nonzero measurement-plus-landmark-mapping uncertainty without viewing residuals; absolute link length is not a free IMU-fit coordinate.",
+      "required_evidence": "frozen scale likelihood/proxy derivation, raw observations, uncertainty sources, sensitivity"
+    },
+    {
+      "id": "GEOM-006",
+      "owner": "missing internal geometry",
+      "consequence": "A",
+      "requirement": "Explicitly preserve missing shoulder/hip centers and torso/foot geometry; bicristal is not ASIS breadth, and old 0.06 m/0.22 m/axial-offset/display constants are forbidden.",
+      "required_evidence": "missingness table, primary-input audit, legacy-value non-consumption scan"
+    },
+    {
+      "id": "PARAM-001",
+      "owner": "active parameter registry",
+      "consequence": "A",
+      "requirement": "Seal an ACTIVE_PARAMETER_REGISTRY before real fit; every fit, state, fixed, derived, gauge, numerical, threshold, and viewer parameter declares owner/source/unit/uncertainty/consumers/class/sensitivity.",
+      "required_evidence": "registry path/hash/schema and complete parameter table"
+    },
+    {
+      "id": "PARAM-002",
+      "owner": "parameter source firewall",
+      "consequence": "A",
+      "requirement": "Source/config/default scan finds zero unregistered real-fit or viewer parameters; historical config values cannot enter merely because they already exist.",
+      "required_evidence": "numeric-source inventory, registry join, zero-unregistered report"
+    },
+    {
+      "id": "GRAPH-001",
+      "owner": "relative-heading graph",
+      "consequence": "A",
+      "requirement": "The connected graph is exactly a rooted nine-edge parent-child tree with one pelvis yaw gauge; official-style tree propagation is primary and no unnecessary extra global heading variables are introduced.",
+      "required_evidence": "state schema, edge list, propagation equivalence and gauge-rank audit"
+    },
+    {
+      "id": "GRAPH-002",
+      "owner": "initialization",
+      "consequence": "A",
+      "requirement": "Initial still provides only tilt, bias/noise/stillness, and impossible-branch rejection; it cannot claim yaw, axes, centers, twist, lengths, sagittal branch, or completion.",
+      "required_evidence": "initial-state rank test and false-completion mutation"
+    },
+    {
+      "id": "BRANCH-001",
+      "owner": "branch manager",
+      "consequence": "B",
+      "requirement": "Maintain multiple physically legal branches until cumulative evidence prunes them.",
+      "required_evidence": "branch chronology, weights, rejection causes"
+    },
+    {
+      "id": "BRANCH-002",
+      "owner": "candidate selector",
+      "consequence": "B",
+      "requirement": "Apply physical feasibility before residual ranking; an invalid lower-residual candidate never displaces a legal candidate.",
+      "required_evidence": "selection trace and invalid-low-cost mutation"
+    },
+    {
+      "id": "BRANCH-003",
+      "owner": "physical feasibility",
+      "consequence": "B",
+      "requirement": "Reject knee front/back split, crossing, mirror, disconnection, collapse, improper rotation, implausible gravity/topology and only gross ROM impossibility after subject variability/uncertainty as candidate failures; minor plausible ROM excursions are stochastic evidence.",
+      "required_evidence": "physical reports, ROM uncertainty/sensitivity, images, negative mutations"
+    },
+    {
+      "id": "PROG-001",
+      "owner": "progressive state",
+      "consequence": "A",
+      "requirement": "One persistent chronological state retains every complete authorized episode; prefixes are posterior snapshots, not separate fits or stitched profiles.",
+      "required_evidence": "episode update log, state lineage hashes, zero stitching count"
+    },
+    {
+      "id": "PROG-002",
+      "owner": "progress metric",
+      "consequence": "C",
+      "requirement": "Before fit freeze, progress uses gauge-reduced information/rank, uncertainty, branch concentration, physical validity, and prequential prediction scored before episode ingestion; final sealed held-out evidence is opened only after freeze and cannot trigger refit. Counts/time/iterations are forbidden and progress may decrease on conflict.",
+      "required_evidence": "metric definition, prediction-before-ingest timestamps, heldout access trace, and curves including a conflict case"
+    },
+    {
+      "id": "PROG-003",
+      "owner": "weighting",
+      "consequence": "C",
+      "requirement": "Covariance/information accounts for static correlation, common bias, soft-tissue artifact, and effective support; samples are not independent votes.",
+      "required_evidence": "covariance model, effective sample sizes, sensitivity"
+    },
+    {
+      "id": "PROG-004",
+      "owner": "final verifier",
+      "consequence": "A",
+      "requirement": "Final progressive state agrees with an independently initialized fresh full chronological all-episode batch within synthetic-qualified uncertainty.",
+      "required_evidence": "parameter/state/covariance comparison and tolerances"
+    },
+    {
+      "id": "SYN-001",
+      "owner": "independent synthetic oracle",
+      "consequence": "A",
+      "requirement": "Synthetic generator is independent at model-class level and randomizes mounts/slippage, 3D offsets, human asymmetry/soft tissue/axis migration/nonideal hinges, sensor noise/bias/scale/cross-axis/drift/quantization/jitter/correlation/gaps, degeneracy, and order.",
+      "required_evidence": "separate oracle dependency audit, seeds, distributions"
+    },
+    {
+      "id": "METHOD-001",
+      "owner": "mature-method integration",
+      "consequence": "A",
+      "requirement": "Treat the target as integration of mature QMT/Olsson/Seel mechanisms: reference implementation and pairwise applicability map first, smallest C2 adapter second; a new bespoke solver requires a bounded proof of one missing capability and retains the mature reference comparator.",
+      "required_evidence": "per-edge method/applicability table, reference-equivalence tests, adapter diff, and any missing-capability proof"
+    },
+    {
+      "id": "SYN-002",
+      "owner": "mutation qualification",
+      "consequence": "A",
+      "requirement": "All mandatory negative mutations in MASTER_CONTRACT section 12 detect/reject before first real fit.",
+      "required_evidence": "mutation matrix with expected/actual outcomes"
+    },
+    {
+      "id": "VIS-001",
+      "owner": "causal A/B/C",
+      "consequence": "A",
+      "requirement": "Historical failed trajectory, continuous VQF, and corrected trajectory use identical renderer, geometry, timestamps, root gauge, and cameras; historical output cannot influence fit.",
+      "required_evidence": "shared-renderer hashes and isolated comparator declaration"
+    },
+    {
+      "id": "VIS-002",
+      "owner": "viewer",
+      "consequence": "A",
+      "requirement": "No retarget, torso rebase, shoulder-line yaw rescue, IK, repair, smoothing rescue, per-action correction, zero shoulder/hip spacing, or invented internal geometry.",
+      "required_evidence": "viewer source audit and rescue mutations"
+    },
+    {
+      "id": "VIS-003",
+      "owner": "viewer",
+      "consequence": "A",
+      "requirement": "Separate sensor/segment-frame diagnostics from scientific anatomical FK; solver and viewer share corrected trajectories and qualified posterior geometry.",
+      "required_evidence": "consumer hashes and geometry provenance"
+    },
+    {
+      "id": "VIS-004",
+      "owner": "visual QA",
+      "consequence": "B",
+      "requirement": "WORK and monitor independently inspect actual front/side/top pixels for initial, upper, both lower sides, squat, and final standing; booleans are insufficient.",
+      "required_evidence": "image paths/hashes and two human inspection reports"
+    },
+    {
+      "id": "EXEC-001",
+      "owner": "stage runner",
+      "consequence": "A",
+      "requirement": "Declare iteration/wall/multistart/worker limits before each solve; no blind call over 30 minutes or phase overrun without causal report.",
+      "required_evidence": "stage budget records and convergence traces"
+    },
+    {
+      "id": "EXEC-002",
+      "owner": "causal pivot",
+      "consequence": "D",
+      "requirement": "Timeout, stall, zero candidate, mutation failure, invalid view, or local held-out conflict triggers evidence preservation, causal analysis, bounded hypothesis test, and in-scope pivot rather than task termination.",
+      "required_evidence": "failure artifact, earliest divergence, test, pivot, smallest rerun"
+    },
+    {
+      "id": "EXEC-003",
+      "owner": "threshold policy",
+      "consequence": "A",
+      "requirement": "Every predicate is Class A/B/C/D before execution; no result-dependent threshold relaxation, action deletion, desired-row selection, or blind restart.",
+      "required_evidence": "predicate inventory and sensitivity report"
+    },
+    {
+      "id": "FINAL-001",
+      "owner": "delivery",
+      "consequence": "A",
+      "requirement": "Final evidence contains all hashes, access audit, code/tests, synthetic results, stage traces, parameters/uncertainty, progressive curves, batch comparison, conflicts/pivots, images/pixel findings, and disk growth.",
+      "required_evidence": "final manifest and report"
+    },
+    {
+      "id": "FINAL-002",
+      "owner": "verdict",
+      "consequence": "A",
+      "requirement": "PASS requires every obligation; INCONCLUSIVE names unresolved evidence; scientific FAIL requires a valid qualified pipeline. Implementation failure/timeout/bad viewer is never terminal scientific FAIL.",
+      "required_evidence": "verdict-to-evidence matrix"
+    }
+  ]
+}

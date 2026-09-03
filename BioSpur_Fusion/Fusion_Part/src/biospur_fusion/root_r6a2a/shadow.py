@@ -198,23 +198,42 @@ class HealthLedger:
         return sorted(rows, key=lambda row: (row["time_s"], row["scope"], row["entity_id"]))
 
 
-def corrected_body_model(fusion: Path) -> BodyModel:
-    """Instantiate the protected R6A0 model only after R6A1C correction."""
+def corrected_body_model(
+    fusion: Path,
+    *,
+    identity_mapping: Mapping[str, str],
+    identity_provenance: str,
+) -> BodyModel:
+    """Instantiate the R6A0 topology with an explicit physical identity map.
+
+    There is deliberately no default device map. Synthetic R6A2A and every
+    real capture caller must each state their mapping and provenance.
+    """
     path = Path(fusion) / "config/root_r6a0/body_graph.json"
     definition = json.loads(path.read_text())
-    if set(definition["active_identity_mapping"]["mapping"]) != set(CORRECT_NODE_MAP):
+    selected = dict(identity_mapping)
+    node_inventory = {str(row["id"]) for row in definition["imu_nodes"]}
+    segment_inventory = {str(value) for value in definition["segments"]}
+    if set(selected) != node_inventory or set(selected.values()) != segment_inventory:
         raise ValueError("protected graph identity inventory changed")
+    source = identity_provenance
+    if not source:
+        raise ValueError("capture-bound identity provenance is required")
     definition["active_identity_mapping"] = {
-        "source": "ROOT_R6A1C_CORRECTED_IDENTITY_ADAPTER",
+        "source": source,
         "source_sha256": hashlib.sha256(
-            json.dumps(CORRECT_NODE_MAP, sort_keys=True).encode()
+            json.dumps(selected, sort_keys=True, separators=(",", ":")).encode()
         ).hexdigest(),
-        "mapping": dict(CORRECT_NODE_MAP),
-        "rule": "R6A2A consumes only the corrected forward map; historical wrist values are never instantiated",
+        "mapping": selected,
+        "rule": (
+            "EXPLICIT_SYNTHETIC_R6A2A_MAP"
+            if "SYNTHETIC" in source else
+            "CAPTURE_BOUND_OR_PROFILE_BOUND_IDENTITY; NO UNIVERSAL_REAL_CAPTURE_DEVICE_MAP"
+        ),
     }
     for collection in ("imu_nodes", "uwb_tags"):
         for row in definition[collection]:
-            row["segment"] = CORRECT_NODE_MAP[row["id"]]
+            row["segment"] = selected[row["id"]]
     return BodyModel(definition)
 
 
@@ -958,7 +977,11 @@ def _attribution(estimator: IntegratedShadowEstimator, spec: ScenarioSpec) -> st
 def run_scenario(fusion: Path, spec: ScenarioSpec) -> dict[str, Any]:
     fusion = Path(fusion)
     registry = registry_from_sealed_addendum(fusion)
-    model = corrected_body_model(fusion)
+    model = corrected_body_model(
+        fusion,
+        identity_mapping=CORRECT_NODE_MAP,
+        identity_provenance="SYNTHETIC_R6A2A_CORRECTED_FORWARD_MAP",
+    )
     truth_calibration = build_synthetic_calibration(model, registry, geometry=spec.geometry)
     estimator_calibration = build_synthetic_calibration(
         model,

@@ -1,0 +1,14 @@
+{
+  "schema": "biospur-pure-imu-v0-b5-causality-selector-correction-v1",
+  "applies_to_contract_sha256": "effd01e1b00118bbfb781f797446177a4cddd87e711156591f2b8421ef8698b3",
+  "classification_changed": false,
+  "threshold_changed": false,
+  "family": "STATIC_TPOSE",
+  "machine_selector_correction": {
+    "previous_target_coordinate_blocks": ["EFFECTIVE_RELATIVE_HEADING"],
+    "corrected_target_coordinate_blocks": ["SENSOR_LONGITUDINAL_AXIS", "EFFECTIVE_RELATIVE_HEADING"]
+  },
+  "reason": "The already-frozen human-readable residual target explicitly says that the separate latent T-pose direction residuals target sensor longitudinal axes and all nine headings. The machine selector accidentally named only the heading half. This correction makes the selector match the frozen residual target; it does not change the family class, removal set, covariance, threshold, or estimator.",
+  "dry_run_disclosure": "The omission was detected by the pre-qualification gate implementation dry run. Both the omitted-selector result and the corrected-selector result must be reported; neither may overwrite the legacy universal 2% result.",
+  "real_data_authorized": false
+}

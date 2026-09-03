@@ -1,0 +1,43 @@
+{
+  "algorithm_id": "BIOPSUR_GRAPH_RELATIVE_HEADING_STABILIZER_V1",
+  "configuration_schema": "biospur.pure_imu.stage3.corrector_config.v1",
+  "display_rate_hz": 60.0,
+  "stationarity": {
+    "rolling_window_s": 0.5,
+    "minimum_duration_s": 2.0,
+    "gyro_rms_max_rad_s": 0.15,
+    "gyro_std_max_rad_s": 0.13,
+    "acc_norm_error_rms_max_g": 0.09,
+    "acc_norm_std_max_g": 0.08,
+    "gyro_saturation_rad_s": 34.0,
+    "acc_saturation_g": 15.5,
+    "maximum_native_gap_s": 0.0075
+  },
+  "bias_estimator": {
+    "window_s": 8.0,
+    "minimum_support_s": 2.0,
+    "minimum_samples": 60,
+    "maximum_abs_bias_rad_s": 0.035,
+    "maximum_bias_step_rad_s": 0.00035,
+    "confidence_decay_s": 120.0,
+    "minimum_active_confidence": 0.45
+  },
+  "correction": {
+    "maximum_abs_correction_rad": 3.141592653589793,
+    "global_axis": [0.0, 0.0, 1.0],
+    "pelvis_gauge_correction_rad": 0.0,
+    "kinematic_constraint_mode": "WITHHELD_FRAME_AMBIGUOUS_NO_VALIDATED_FUNCTIONAL_AXIS_OR_PRONATION_SAFE_2DOF_MODEL"
+  },
+  "derivation": {
+    "inputs": "Stage 1 selected calibration windows, JY61P sensor scale, and synthetic qualification only",
+    "rolling_threshold_rule": "ceil above the maximum observed 0.5 s calibration-window statistic with quantization margin",
+    "observed_maxima": {
+      "gyro_rms_rad_s": 0.13177493306125068,
+      "gyro_std_rad_s": 0.11219585585887085,
+      "acc_norm_error_rms_g": 0.07990227848449978,
+      "acc_norm_std_g": 0.0709805947330452
+    },
+    "capture_specific_parameters": false,
+    "reporting_checkpoint_parameters": false
+  }
+}

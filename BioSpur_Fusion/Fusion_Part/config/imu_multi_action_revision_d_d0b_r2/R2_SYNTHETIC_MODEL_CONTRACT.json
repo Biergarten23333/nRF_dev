@@ -1,0 +1,19 @@
+{
+  "schema": "biospur-d0b-r2-synthetic-model-contract-v1",
+  "revision": "D0B_R2_OBSERVATION_LINEAGE_V2",
+  "baseline_commit": "412233adcb0a5a8551f2a5d1085c79b8c2c26ae5",
+  "formal_synthetic_run_limit": 1,
+  "q2": {"accel_lsb_per_g": 2048.0, "gyro_lsb_per_dps": 16.384, "gravity_mps2": 9.80665, "filter_time_constant_s": 0.1, "gyro_rate_scale_dps": 8.0, "gyro_change_scale_dps_per_s": 80.0, "accel_norm_scale_g": 0.15, "jerk_scale_mps3": 12.0, "temporal_support_s": 0.4, "cross_node_bin_s": 0.05, "maximum_cross_node_confidence_influence": 0.25, "minimum_numerical_weight": 1e-6, "bias_huber_k": 1.5, "bias_huber_minimum_scale_dps": 0.15, "gravity_huber_k": 1.5, "gravity_huber_minimum_scale_deg": 0.25, "correlation_time_s": 0.25, "minimum_effective_sample_size": 8.0, "maximum_bias_standard_uncertainty_dps": 1.0, "maximum_gravity_angular_standard_uncertainty_deg": 5.0, "initial_tilt_sigma_deg": 3.0, "yaw_sigma_deg": 180.0, "maximum_propagated_gap_s": 0.05, "gyro_noise_sigma_rad_s_sqrt_hz": 0.003, "maximum_gravity_correction_gain": 0.04},
+  "common_time": {"rate_hz": 50.0, "maximum_bracket_gap_s": 0.03, "require_same_boot_epoch": true},
+  "measurement_covariance": {"static_direction_sigma_deg": 5.0, "dynamic_hinge_sigma_rad_s": 0.35, "elbow_curl_pronation_subspace_sigma_rad_s": 0.4, "trunk_motion_plane_sigma_rad_s": 0.3, "natural_pose_sigma_deg": 18.0, "tpose_protocol_sigma_deg": 15.0},
+  "row_selection": {"maximum_static_rows_per_segment": 20, "maximum_dynamic_rows_per_factor": 60, "selection": "DETERMINISTIC_UNIFORM_WITHIN_FROZEN_ACTION_PHASE_CHAIN_VALIDITY_ALLOWLIST", "cycle_weighting": false},
+  "lineage_v2": {"common_rigid_motion_maximum_relative_information_ratio": 0.2, "common_rigid_motion_absolute_noise_floor_rad_s": 0.05},
+  "jacobian_v2": {"maximum_jv_relative_error": 1e-6, "maximum_jv_absolute_error": 1e-6},
+  "solver": {"starts": 5, "maximum_function_evaluations": 450, "loss": "soft_l1", "f_scale": 1.0, "xtol": 1e-10, "ftol": 1e-10, "gtol": 1e-10, "finite_difference": "FROZEN_PRODUCTION_CALLABLE", "finite_difference_step": 1e-5},
+  "recovery_gates": {"maximum_segment_direction_rmse_deg": 6.0, "maximum_graphical_node_rmse_m": 0.07, "maximum_multistart_segment_direction_disagreement_deg": 3.0, "maximum_multistart_node_disagreement_m": 0.04, "minimum_action_profiled_information_norm": 1e-5, "truth_firewall_requires_bitwise_identity": true},
+  "observability": {"absolute_singular_value_threshold": 1e-7, "relative_singular_value_threshold": 1e-7, "profile_method": "SVD_LEFT_NULL_PROJECTION_NO_JTJ", "finite_null_scan_rad": [-0.1, -0.01, -0.0001, -0.000001, 0.000001, 0.0001, 0.01, 0.1]},
+  "generic_rendering_lengths_m": {"shoulder_width": 0.4, "hip_width": 0.3, "torso": 0.5, "upper_arm_L": 0.32, "upper_arm_R": 0.32, "forearm_L": 0.26, "forearm_R": 0.26, "thigh_L": 0.43, "thigh_R": 0.43, "shank_L": 0.43, "shank_R": 0.43},
+  "synthetic": {"seeds": [17011, 17029], "sample_rate_hz": 100.0, "action_duration_s": 5.0, "inter_action_transition_s": 0.4, "gyro_bias_sigma_dps": 0.12, "gyro_noise_sigma_dps": 0.08, "accel_noise_mps2": 0.025, "timestamp_jitter_ns": 80000, "deterministic_gap_duration_s": 0.04},
+  "sealed_inputs": ["real_calibration", "real_q2_cache", "final_still", "walk", "golf", "boxing", "UWB/T4", "Anchor", "operator_measurements"],
+  "commit_push_authorized": false
+}

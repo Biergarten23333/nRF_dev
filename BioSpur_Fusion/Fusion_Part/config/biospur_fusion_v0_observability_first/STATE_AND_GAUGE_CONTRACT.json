@@ -1,0 +1,119 @@
+{
+  "schema": "biospur-pure-imu-v0-observability-first-state-contract-v1",
+  "mission": "TEN_NODE_MAGNETOMETER_FREE_CAPTURE_BOUND_FIXED_PROFILE",
+  "lineage": {
+    "required_starting_parameterization": "config/imu_multi_action_revision_d_d0/D0_STATE_AND_GAUGE_CONTRACT.json",
+    "rejected_code_lock_prefix": "05752bb7",
+    "rejected_profile_lock_prefix": "c6d9170f",
+    "rejected_lineages_are_inputs": false,
+    "capture1_and_capture2_independent": true
+  },
+  "segments": [
+    "pelvis",
+    "torso",
+    "upper_arm_left",
+    "upper_arm_right",
+    "forearm_left",
+    "forearm_right",
+    "thigh_left",
+    "thigh_right",
+    "shank_left",
+    "shank_right"
+  ],
+  "legal_gauge": {
+    "physical_nullspace": "ONE_COMMON_GLOBAL_YAW",
+    "analytic_vector": "equal yaw increment on all ten segment navigation frames",
+    "coordinate_choice": "pelvis effective heading equals zero",
+    "remaining_effective_relative_heading_coordinates": 9,
+    "forbidden_rank_sources": [
+      "bounds",
+      "regularization",
+      "smoothing",
+      "zero-heading assumptions",
+      "fixed pelvis orientation treated as data",
+      "exact motion-plane templates",
+      "exact textbook neutral or T-pose"
+    ]
+  },
+  "publishable_static_state": {
+    "dimension": 55,
+    "blocks": [
+      {
+        "name": "sensor_to_segment_longitudinal_axis",
+        "coordinates": 20,
+        "parameterization": "10 x S2 tangent coordinates",
+        "physical_role": "per-donning mounting tilt and azimuth-axis binding"
+      },
+      {
+        "name": "effective_relative_heading",
+        "coordinates": 9,
+        "parameterization": "one yaw coordinate per non-pelvis segment",
+        "physical_role": "nine independent VQF yaw-gauge differences relative to pelvis"
+      },
+      {
+        "name": "limb_functional_axes",
+        "coordinates": 16,
+        "parameterization": "8 x S2 tangent coordinates",
+        "physical_role": "shoulder, elbow, hip, and knee action axes fixed in each joint parent board frame and transformed at every time row"
+      },
+      {
+        "name": "trunk_functional_frame",
+        "coordinates": 3,
+        "parameterization": "minimal right-handed SO3 rotation vector",
+        "physical_role": "right-handed frame fixed in the pelvis board frame from joint non-collinear axial-turn and flexion evidence; a single motion plane may not identify it"
+      },
+      {
+        "name": "joint_neutral_zero",
+        "coordinates": 7,
+        "parameterization": "left/right elbow, hip, knee, plus trunk",
+        "physical_role": "capture-defined reporting zero with explicit non-clinical status"
+      }
+    ]
+  },
+  "jointly_optimized_nuisance_state": {
+    "dimension": 34,
+    "blocks": [
+      {
+        "name": "initial_still_latent_articulated_pose",
+        "coordinates": 17,
+        "parameterization": "shared root SO3 (3), torso S2 (2), bilateral shoulder S2 (4), elbow flexion (2), bilateral hip S2 (4), and knee flexion (2)",
+        "rule": "one connected tree with soft pose/bilateral residuals; never ten free directions and never fixed to a textbook pose"
+      },
+      {
+        "name": "t_pose_latent_articulated_pose",
+        "coordinates": 17,
+        "parameterization": "shared root SO3 (3), torso S2 (2), bilateral shoulder S2 (4), elbow flexion (2), bilateral hip S2 (4), and knee flexion (2)",
+        "rule": "separate connected tree from initial still; soft pose/bilateral residuals; never averaged with initial still"
+      }
+    ],
+    "profile_method": "JOINT_OPTIMIZATION_OR_MATHEMATICALLY_EQUIVALENT_SCHUR_COMPLEMENT",
+    "deletion_for_rank": "FORBIDDEN"
+  },
+  "full_continuous_state_dimension": 89,
+  "discrete_hypotheses": {
+    "limb_axis_signs": 8,
+    "trunk_handedness": 1,
+    "left_right_semantics": 1,
+    "policy": "enumerate product-distinct alternatives and fail closed when more than one passes within the declared likelihood margin"
+  },
+  "frontend_nuisance_inputs": {
+    "vqf_gyro_bias_trajectory": "measured estimate with covariance, not a static-state rank source",
+    "sample_validity_and_gap_state": "propagated into factor covariance and eligibility",
+    "timebase": "single B306 clock; no fitted inter-node time shift"
+  },
+  "profile_lifetime": {
+    "fits_per_capture_donning": 1,
+    "per_action_refit": false,
+    "state_chaining_between_actions": false,
+    "cross_capture_parameter_transfer": false,
+    "profile_writeback_during_replay": false
+  },
+  "acceptance": {
+    "measurement_profiled_publishable_rank_required": 55,
+    "legal_common_yaw_nullity_before_pelvis_quotient": 1,
+    "rank_from_priors_allowed": false,
+    "product_distinct_ambiguity_result": "FAIL_AMBIGUOUS_SIGN_OR_HANDEDNESS",
+    "rank_failure_result": "FAIL_OBSERVABILITY",
+    "episode_failure_result": "CALIBRATION_EPISODE_INCOMPLETE"
+  }
+}
