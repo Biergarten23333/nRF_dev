@@ -15,7 +15,14 @@ from typing import Any, Mapping
 import numpy as np
 from scipy.spatial.transform import Rotation
 
-from .model import DOWN, HingeJoint, _minimal_alignment, _rotation, _wxyz
+from .model import (
+    DOWN,
+    HingeJoint,
+    _minimal_alignment,
+    _rotation,
+    _wxyz,
+    hinge_coordinate_deg,
+)
 
 
 def _unsigned_bend_deg(parent: Rotation, child: Rotation) -> np.ndarray:
@@ -135,3 +142,99 @@ def apply_orientation_constrained_ik(
             for key, value in trajectory["output_coordinate_convention"].items()
         }
     return corrected, metrics
+
+
+def project_hinge_corrections(
+    base_rotations_world: Mapping[str, np.ndarray],
+    correction_rotvec: Mapping[str, np.ndarray],
+    model: Mapping[str, HingeJoint],
+) -> tuple[dict[str, np.ndarray], dict[str, Any]]:
+    """Project one articulated update through the public hinge/ROM owner.
+
+    Raw-range IK is allowed to propose small rotations for every segment, but
+    it must not create a second joint convention.  This function applies those
+    proposals, invokes the same analytic hinge reconstruction used by the
+    native-200 trajectory, and converts the projected absolute orientations
+    back to right-multiplicative segment corrections.
+    """
+
+    base = {
+        segment: np.asarray(rotation, dtype=float).reshape(3, 3)
+        for segment, rotation in base_rotations_world.items()
+    }
+    corrections = {
+        segment: np.asarray(value, dtype=float).reshape(3).copy()
+        for segment, value in correction_rotvec.items()
+    }
+    if set(base) != set(corrections):
+        raise ValueError("base rotations and corrections must own the same segments")
+    if any(
+        not np.all(np.isfinite(value))
+        for collection in (base, corrections)
+        for value in collection.values()
+    ):
+        raise ValueError("hinge projection inputs must be finite")
+
+    absolute = {
+        segment: base[segment] @ Rotation.from_rotvec(corrections[segment]).as_matrix()
+        for segment in base
+    }
+    def one_wxyz(matrix: np.ndarray) -> np.ndarray:
+        quaternion = Rotation.from_matrix(matrix).as_quat()
+        return np.r_[quaternion[3], quaternion[:3]][None, :]
+
+    joint_metrics: dict[str, Any] = {}
+    for name, joint in model.items():
+        parent_q = one_wxyz(absolute[joint.parent])
+        child_q = one_wxyz(absolute[joint.child])
+        pre_signed = float(hinge_coordinate_deg(parent_q, child_q, joint)[0])
+        flexion, solve_metrics = solve_hinge_flexion_deg(
+            parent_q, child_q, joint
+        )
+        child_projected_q, reconstruction = reconstruct_distal_orientation(
+            parent_q, child_q, flexion, joint
+        )
+        absolute[joint.child] = _rotation(child_projected_q).as_matrix()[0]
+        corrections[joint.child] = Rotation.from_matrix(
+            base[joint.child].T @ absolute[joint.child]
+        ).as_rotvec()
+        post_child_q = one_wxyz(absolute[joint.child])
+        post_signed = float(
+            hinge_coordinate_deg(parent_q, post_child_q, joint)[0]
+        )
+        tolerance_deg = 3e-6
+        joint_metrics[name] = {
+            "pre_projection_signed_deg": pre_signed,
+            "post_projection_signed_deg": post_signed,
+            "pre_projection_below_rom": bool(pre_signed < joint.minimum_deg),
+            "pre_projection_above_rom": bool(pre_signed > joint.maximum_deg),
+            "post_projection_inside_rom": bool(
+                joint.minimum_deg - tolerance_deg
+                <= post_signed
+                <= joint.maximum_deg + tolerance_deg
+            ),
+            "flexion_deg": float(flexion[0]),
+            "fk_direction_residual_deg": reconstruction[
+                "fk_direction_residual_maximum_deg"
+            ],
+            "observed_unsigned_bend_deg": solve_metrics[
+                "observed_maximum_deg"
+            ],
+        }
+    all_inside = all(
+        row["post_projection_inside_rom"] for row in joint_metrics.values()
+    )
+    maximum_residual = max(
+        row["fk_direction_residual_deg"] for row in joint_metrics.values()
+    )
+    return corrections, {
+        "joint": joint_metrics,
+        "pre_projection_below_rom_count": sum(
+            row["pre_projection_below_rom"] for row in joint_metrics.values()
+        ),
+        "pre_projection_above_rom_count": sum(
+            row["pre_projection_above_rom"] for row in joint_metrics.values()
+        ),
+        "post_projection_all_inside_rom": all_inside,
+        "fk_direction_residual_maximum_deg": maximum_residual,
+    }

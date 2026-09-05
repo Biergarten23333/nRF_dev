@@ -11,6 +11,7 @@ from biospur_fusion.c2_articulated_biomechanics.model import (
     hinge_coordinate_deg,
 )
 from biospur_fusion.c2_articulated_biomechanics.orientation_ik import (
+    project_hinge_corrections,
     reconstruct_distal_orientation,
     solve_hinge_flexion_deg,
 )
@@ -84,3 +85,69 @@ def test_orientation_ik_uses_unsigned_bend_and_caps_rom() -> None:
 
     np.testing.assert_allclose(flexion, [30.0, 40.0, 150.0], atol=1e-10)
     assert metrics["above_rom_count"] == 1
+
+
+def test_public_projector_repairs_negative_incremental_hinge_update() -> None:
+    base = {
+        "upper_arm_right": np.eye(3),
+        "forearm_right": Rotation.from_rotvec(
+            np.radians([40.0, 0.0, 0.0])
+        ).as_matrix(),
+    }
+    correction = {
+        "upper_arm_right": np.zeros(3),
+        # Propose enough opposite rotation to turn +40 degrees into -20.
+        "forearm_right": np.radians(np.array([-60.0, 0.0, 0.0])),
+    }
+    joint = _joint()
+    projected, metrics = project_hinge_corrections(
+        base, correction, {joint.name: joint}
+    )
+    parent = Rotation.from_matrix([
+        base[joint.parent] @ Rotation.from_rotvec(projected[joint.parent]).as_matrix()
+    ])
+    child = Rotation.from_matrix([
+        base[joint.child] @ Rotation.from_rotvec(projected[joint.child]).as_matrix()
+    ])
+    coordinate = hinge_coordinate_deg(_wxyz(parent), _wxyz(child), joint)[0]
+
+    assert metrics["pre_projection_below_rom_count"] == 1
+    assert metrics["post_projection_all_inside_rom"]
+    assert 0.0 <= coordinate <= joint.maximum_deg
+    assert metrics["fk_direction_residual_maximum_deg"] <= 1e-6
+
+
+def test_public_projector_reexpresses_stale_carry_on_changed_base() -> None:
+    joint = _joint()
+    first_base = {
+        joint.parent: np.eye(3),
+        joint.child: Rotation.from_rotvec(
+            np.radians([40.0, 0.0, 0.0])
+        ).as_matrix(),
+    }
+    raw = {
+        joint.parent: np.zeros(3),
+        joint.child: np.radians(np.array([-60.0, 0.0, 0.0])),
+    }
+    first, _ = project_hinge_corrections(first_base, raw, {joint.name: joint})
+    # The native pose base has moved from +40 to +10 degrees.  Reusing the
+    # old -20-degree right correction creates a negative bend; current-base
+    # transport must re-express it and then be idempotent at this base.
+    second_base = {
+        joint.parent: np.eye(3),
+        joint.child: Rotation.from_rotvec(
+            np.radians([10.0, 0.0, 0.0])
+        ).as_matrix(),
+    }
+    second, metrics = project_hinge_corrections(
+        second_base, first, {joint.name: joint}
+    )
+    repeated, repeated_metrics = project_hinge_corrections(
+        second_base, second, {joint.name: joint}
+    )
+
+    assert metrics["pre_projection_below_rom_count"] == 1
+    assert metrics["post_projection_all_inside_rom"]
+    assert repeated_metrics["post_projection_all_inside_rom"]
+    for segment in second:
+        np.testing.assert_allclose(repeated[segment], second[segment], atol=1e-12)

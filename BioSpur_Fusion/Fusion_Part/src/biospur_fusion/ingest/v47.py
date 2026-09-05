@@ -118,11 +118,34 @@ def _uwb_event(frame, boot: int, provenance: tuple[int, int, int, bytes]) -> Typ
     )
 
 
+def _measurement_stream_boot_epoch(
+    node: str,
+    kind: int,
+    timer_us: int,
+    last_timer_by_stream: dict[tuple[str, int], int],
+    boot_by_stream: Counter[tuple[str, int]],
+) -> int:
+    """Segment resets without mistaking cross-queue delivery order for a reboot.
+
+    IMU batches and UWB frames are transported through separate queues. Their
+    host delivery order is therefore not a total ordering of TIMER2 trigger
+    times. Reversal detection is valid only within one node and record stream.
+    Both streams still start at boot zero and independently advance when their
+    own TIMER2 sequence reverses.
+    """
+    key = (str(node), int(kind))
+    previous = last_timer_by_stream.get(key)
+    if previous is not None and int(timer_us) < previous:
+        boot_by_stream[key] += 1
+    last_timer_by_stream[key] = int(timer_us)
+    return int(boot_by_stream[key])
+
+
 def decode_measurements(path: Path) -> tuple[list[TypedEvent], DecodeAudit]:
     """Decode every complete IMU/UWB measurement; receipt time stays diagnostic."""
     events: list[TypedEvent] = []
-    boot_by_node: Counter[str] = Counter()
-    last_timer: dict[str, int] = {}
+    boot_by_stream: Counter[tuple[str, int]] = Counter()
+    last_timer_by_stream: dict[tuple[str, int], int] = {}
     kinds: Counter[str] = Counter()
     complete = empty = errors = tail = 0
     for index, start, end, encoded, is_complete in iter_cobs_records(path):
@@ -136,15 +159,15 @@ def decode_measurements(path: Path) -> tuple[list[TypedEvent], DecodeAudit]:
             if frame.kind not in (1, 3):
                 continue
             timer = struct.unpack_from("<Q", frame.payload, 102 if frame.kind == 1 else 4)[0]
-            previous = last_timer.get(frame.node_name)
-            if previous is not None and timer < previous:
-                boot_by_node[frame.node_name] += 1
-            last_timer[frame.node_name] = int(timer)
+            boot = _measurement_stream_boot_epoch(
+                frame.node_name, frame.kind, timer,
+                last_timer_by_stream, boot_by_stream,
+            )
             provenance = (index, start, end, encoded)
             if frame.kind == 3:
-                events.extend(_imu_events(frame, boot_by_node[frame.node_name], provenance))
+                events.extend(_imu_events(frame, boot, provenance))
             else:
-                events.append(_uwb_event(frame, boot_by_node[frame.node_name], provenance))
+                events.append(_uwb_event(frame, boot, provenance))
         except (FrameError, struct.error, IndexError, ValueError):
             errors += 1
     return events, DecodeAudit(complete, empty, errors, tail, len(events), dict(sorted(kinds.items())))

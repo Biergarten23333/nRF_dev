@@ -206,6 +206,55 @@ def test_h01_h02_are_separate_exact_no_refit_diagnostics(
                 assert series.orientation_covariance_rad2 is None
 
 
+def test_hxx_uwb_proxy_uses_same_named_joint_points_as_calibration(
+    kinematics, holdout_diagnostics
+) -> None:
+    from biospur_fusion.c2_uwb_calibration.frozen_body_proxy import (
+        FrozenHoldoutBodyProxy,
+        NODE_TO_PROXY_POINT,
+    )
+
+    adapter = FrozenHoldoutBodyProxy.create(holdout_diagnostics, kinematics)
+    alignment = np.eye(3)
+    offsets, normals, frame = adapter.at_fraction(
+        "H01_boxing", 0.5, alignment
+    )
+    expected = joints_for_frame(
+        adapter.trajectory,
+        "H01_boxing",
+        frame,
+        adapter.model,
+        adapter.config,
+        apply_output_coordinates=False,
+    )
+    pelvis = expected["pelvis_center"]
+    assert set(offsets) == set(NODE_TO_PROXY_POINT)
+    assert set(normals) == set(NODE_TO_PROXY_POINT)
+    for node, point in NODE_TO_PROXY_POINT.items():
+        assert np.array_equal(offsets[node], expected[point] - pelvis)
+        assert np.isclose(np.linalg.norm(normals[node]), 1.0)
+
+
+def test_uwb_world_to_display_binding_composes_both_coordinate_frames() -> None:
+    from biospur_fusion.c2_uwb_calibration.frozen_body_proxy import (
+        output_from_uwb_world,
+    )
+
+    output_from_internal = np.diag([-1.0, 1.0, 1.0])
+    uwb_from_internal = np.array([
+        [0.0, 1.0, 0.0],
+        [-1.0, 0.0, 0.0],
+        [0.0, 0.0, 1.0],
+    ])
+    binding = output_from_uwb_world(
+        output_from_internal, uwb_from_internal
+    )
+    internal = np.array([0.2, -0.4, 1.1])
+    uwb = uwb_from_internal @ internal
+    np.testing.assert_allclose(binding @ uwb, output_from_internal @ internal)
+    assert not np.allclose(binding, np.diag([1.0, -1.0, 1.0]))
+
+
 def test_all_19_episode_direct_fk_matches_frozen_renderer(
     kinematics, renderer_inputs
 ) -> None:

@@ -122,6 +122,18 @@ class UwbMeasurement:
     sigma_m: float
     boot_epoch: int = 1
     clock_valid: bool = True
+    geometry_reliability: float = 1.0
+    facing_score: float | None = None
+
+    def __post_init__(self) -> None:
+        if not np.isfinite(self.sigma_m) or self.sigma_m <= 0.0:
+            raise ValueError("UWB sigma must be finite and positive")
+        if not np.isfinite(self.geometry_reliability) or not 0.0 < self.geometry_reliability <= 1.0:
+            raise ValueError("UWB geometry reliability must be in (0, 1]")
+        if self.facing_score is not None and (
+            not np.isfinite(self.facing_score) or not -1.0 <= self.facing_score <= 1.0
+        ):
+            raise ValueError("UWB facing score must be in [-1, 1]")
 
     @property
     def link_id(self) -> str:

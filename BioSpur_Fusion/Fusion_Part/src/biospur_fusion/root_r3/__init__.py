@@ -4,8 +4,14 @@ This package is intentionally isolated from product runners.  Importing it has
 no side effects and cannot change the frozen M1 or any product default.
 """
 
-from .estimator import CausalDelayedRootFilter, RootFilterConfig
+from .estimator import (
+    AuthoritativeBaselineReconstructionError,
+    CausalDelayedRootFilter,
+    RootFilterConfig,
+)
 from .models import (
+    AdditiveRootConstraint,
+    BoundedTargetRootConstraint,
     FrameBindingStatus,
     ImuSample,
     PositionObservation,
@@ -15,6 +21,9 @@ from .models import (
 )
 
 __all__ = [
+    "AdditiveRootConstraint",
+    "AuthoritativeBaselineReconstructionError",
+    "BoundedTargetRootConstraint",
     "CausalDelayedRootFilter",
     "FrameBindingStatus",
     "ImuSample",

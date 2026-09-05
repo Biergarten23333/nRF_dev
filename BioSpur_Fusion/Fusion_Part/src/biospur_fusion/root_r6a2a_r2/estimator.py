@@ -582,7 +582,8 @@ class RepairedShadowEstimator:
             normalized = abs(float(row["normalized"]))
             if value.options.health_accommodation_enabled and value.options.robust_weighting_enabled and normalized > 2.5:
                 robust = 2.5 / normalized
-            weight = max(1e-6, health_weight * robust)
+            geometry_reliability = float(measurement.geometry_reliability)
+            weight = max(1e-6, health_weight * robust * geometry_reliability)
             state_at = interpolate_state(previous, propagated, measurement.measurement_time_s)
             if measurement.tag_id not in jacobians:
                 cache_key = (self._calibration_signature, measurement.tag_id)
@@ -616,6 +617,8 @@ class RepairedShadowEstimator:
                 "effective_weighted_scalar_nis": float(row["normalized"]) ** 2 * weight,
                 "measurement_degrees_of_freedom": 1,
                 "health_weight": health_weight, "robust_weight": robust, "weight": weight,
+                "geometry_reliability": geometry_reliability,
+                "facing_score": measurement.facing_score,
             })
 
         if len(h_rows) < 4:

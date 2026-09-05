@@ -218,15 +218,15 @@ function imuRoot(){
   return rows?rows[Math.max(0,Math.min(rows.length-1,frameIndex))]:[0,0,0];
 }
 function imuCameraCenter(){
-  if(active().id!==IMU_WORLD.action)return[0,0,0];
-  return imuWorldCameraFollow?imuRoot():IMU_WORLD.fixed_overview_center_output_m;
+  if(imuWorldCameraFollow&&active().id===IMU_WORLD.action)return imuRoot();
+  return IMU_WORLD.fixed_overview_center_output_m;
 }
 project=function(x,y,z,w,h){
   const c=imuCameraCenter();
   return imuBaseProject(x-c[0],y-c[1],z-c[2],w,h);
 };
 followBodyCamera=function(raw){
-  if(active().id===IMU_WORLD.action&&!imuWorldCameraFollow)return;
+  if(!imuWorldCameraFollow)return;
   imuBaseFollowBodyCamera(raw);
 };
 const imuFollowButton=document.createElement('button');
@@ -269,9 +269,10 @@ function imuDrawBox(bounds,w,h,stroke,width,dash){
 }
 function renderImuWorldScene(){
   const ep=active(),rows=ep.rootTranslationImuDr;
-  if(!rows){imuStatus.textContent='本动作无 IMU 世界平移层';return}
+  const hasRows=Boolean(rows);
+  if(!hasRows)imuStatus.textContent='本动作无 IMU 世界平移层 · UWB固定体积仍显示';
   const r=mannequinCanvas.getBoundingClientRect(),w=r.width,h=r.height;
-  const all=rows.map(q=>project(q[0],q[1],q[2],w,h));
+  const all=hasRows?rows.map(q=>project(q[0],q[1],q[2],w,h)):[];
   const upto=Math.max(1,Math.min(all.length,frameIndex+1));
   mannequinCtx.save();mannequinCtx.lineCap='round';mannequinCtx.lineJoin='round';
   imuDrawBox(UWB_SCENE.padded_bounds_output_m,w,h,'rgba(205,214,223,.72)',2,[]);
@@ -287,19 +288,23 @@ function renderImuWorldScene(){
     mannequinCtx.fillStyle='#ffd166';mannequinCtx.beginPath();mannequinCtx.arc(p[0],p[1],4,0,2*Math.PI);mannequinCtx.fill();
     mannequinCtx.font='bold 12px sans-serif';mannequinCtx.fillText(name,p[0]+6,p[1]-5);
   }
-  mannequinCtx.strokeStyle='rgba(78,209,196,.22)';mannequinCtx.lineWidth=2;
-  mannequinCtx.beginPath();all.forEach((q,i)=>i?mannequinCtx.lineTo(q[0],q[1]):mannequinCtx.moveTo(q[0],q[1]));mannequinCtx.stroke();
-  mannequinCtx.strokeStyle='#4ed1c4';mannequinCtx.lineWidth=3;
-  mannequinCtx.beginPath();all.slice(0,upto).forEach((q,i)=>i?mannequinCtx.lineTo(q[0],q[1]):mannequinCtx.moveTo(q[0],q[1]));mannequinCtx.stroke();
-  const origin=all[0],now=all[upto-1];
-  mannequinCtx.fillStyle='#f6c85f';mannequinCtx.beginPath();mannequinCtx.arc(origin[0],origin[1],5,0,2*Math.PI);mannequinCtx.fill();
-  mannequinCtx.fillStyle='#4ed1c4';mannequinCtx.beginPath();mannequinCtx.arc(now[0],now[1],5,0,2*Math.PI);mannequinCtx.fill();
-  mannequinCtx.font='bold 12px sans-serif';mannequinCtx.fillStyle='#f6c85f';mannequinCtx.fillText('显示起点（非 UWB 定位）',origin[0]+8,origin[1]-8);
+  if(hasRows){
+    mannequinCtx.strokeStyle='rgba(78,209,196,.22)';mannequinCtx.lineWidth=2;
+    mannequinCtx.beginPath();all.forEach((q,i)=>i?mannequinCtx.lineTo(q[0],q[1]):mannequinCtx.moveTo(q[0],q[1]));mannequinCtx.stroke();
+    mannequinCtx.strokeStyle='#4ed1c4';mannequinCtx.lineWidth=3;
+    mannequinCtx.beginPath();all.slice(0,upto).forEach((q,i)=>i?mannequinCtx.lineTo(q[0],q[1]):mannequinCtx.moveTo(q[0],q[1]));mannequinCtx.stroke();
+    const origin=all[0],now=all[upto-1];
+    mannequinCtx.fillStyle='#f6c85f';mannequinCtx.beginPath();mannequinCtx.arc(origin[0],origin[1],5,0,2*Math.PI);mannequinCtx.fill();
+    mannequinCtx.fillStyle='#4ed1c4';mannequinCtx.beginPath();mannequinCtx.arc(now[0],now[1],5,0,2*Math.PI);mannequinCtx.fill();
+    mannequinCtx.font='bold 12px sans-serif';mannequinCtx.fillStyle='#f6c85f';mannequinCtx.fillText('显示起点（非 UWB 定位）',origin[0]+8,origin[1]-8);
+  }
   mannequinCtx.restore();
-  const q=imuRoot(),m=UWB_SCENE.matrix_uwb_world_from_output;
-  const world=m.map(row=>row[0]*q[0]+row[1]*q[1]+row[2]*q[2]);
-  const rawZ=ep.rootTranslationRaw3dImuDr[frameIndex][2];
-  imuStatus.textContent=`UWB场地坐标读数: x=${world[0].toFixed(2)} m · y=${world[1].toFixed(2)} m · IMU raw Δz=${rawZ.toFixed(2)} m · ${imuWorldCameraFollow?'相机跟随':'固定45°俯视'}`;
+  if(hasRows){
+    const q=imuRoot(),m=UWB_SCENE.matrix_uwb_world_from_output;
+    const world=m.map(row=>row[0]*q[0]+row[1]*q[1]+row[2]*q[2]);
+    const rawZ=ep.rootTranslationRaw3dImuDr[frameIndex][2];
+    imuStatus.textContent=`UWB场地坐标读数: x=${world[0].toFixed(2)} m · y=${world[1].toFixed(2)} m · IMU raw Δz=${rawZ.toFixed(2)} m · ${imuWorldCameraFollow?'相机跟随':'固定45°俯视'}`;
+  }
 }
 const imuFrozenRenderMannequin=renderMannequin;
 renderMannequin=function(){imuFrozenRenderMannequin();renderImuWorldScene()};

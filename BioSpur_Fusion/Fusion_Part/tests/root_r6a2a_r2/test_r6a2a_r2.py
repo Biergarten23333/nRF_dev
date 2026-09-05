@@ -6,6 +6,7 @@ from pathlib import Path
 import numpy as np
 
 from biospur_fusion.root_r6a2a.shadow import corrected_body_model
+from biospur_fusion.root_r6a1c.adapter import CORRECT_NODE_MAP
 from biospur_fusion.root_r6a2a_r2.contracts import (
     EstimatorInput, FaultInjectionTruth, HealthManager, ObservationStatus,
 )
@@ -18,6 +19,14 @@ from biospur_fusion.root_r6a2a_r2.synthetic import IndependentRng, generate_run
 
 
 FUSION = Path(__file__).resolve().parents[2]
+
+
+def _synthetic_body_model():
+    return corrected_body_model(
+        FUSION,
+        identity_mapping=CORRECT_NODE_MAP,
+        identity_provenance="SYNTHETIC_R6A2A_R2_TEST_MAP",
+    )
 
 
 def test_authority_types_are_disjoint() -> None:
@@ -39,7 +48,7 @@ def test_counterfactual_non_target_inputs_exact() -> None:
 
 
 def test_all_ten_covariance_mappings_reach_state() -> None:
-    model = corrected_body_model(FUSION)
+    model = _synthetic_body_model()
     contract = all_node_covariance_mapping(model)
     assert contract["node_count"] == 10
     assert all(not row["discarded"] and row["cross_covariance_preserved"] for row in contract["nodes"].values())
@@ -84,7 +93,7 @@ def test_low_vertical_geometry_is_directional() -> None:
 
 def test_initial_root_covariance_matches_declared_axis_error_second_moments() -> None:
     generated = generate_run(FUSION, DEVELOPMENT_SCENARIOS[0])
-    model = corrected_body_model(FUSION)
+    model = _synthetic_body_model()
     state, contract = make_initial_state(model, generated.truth_states[0])
     assert contract["root_position_axis_standard_deviations_m"] == [0.055, 0.035, 0.018]
     assert not contract["root_position_isotropic"]
