@@ -1,6 +1,6 @@
 """Native-time IMU preintegration with explicit failure boundaries.
 
-The preintegrator consumes consecutive accepted samples on each B306 common
+The preintegrator consumes consecutive accepted samples on each node's common
 clock.  It does not resample, assume a nominal rate, align different nodes, or
 inject gravity.  Accelerometer inputs are specific force in the sensor frame;
 gravity belongs to the downstream navigation/body factor.
@@ -12,6 +12,8 @@ from enum import Enum
 from typing import Mapping, Sequence
 
 import numpy as np
+
+from .profiles import ImuSensorProfile, profile_for_node
 
 G = 9.80665
 
@@ -90,7 +92,7 @@ class PreintegrationStatus(str, Enum):
 
 @dataclass(frozen=True)
 class ImuSample:
-    """One decoded sample on its authoritative B306 global time axis."""
+    """One decoded sample on its authoritative node-global time axis."""
 
     node_id: str
     global_time_ns: int
@@ -445,27 +447,37 @@ class NativeTimePreintegrator:
         return results
 
 
-def samples_from_typed_ledger(node_id: str, rows: np.ndarray) -> tuple[ImuSample, ...]:
+def samples_from_typed_ledger(
+    node_id: str,
+    rows: np.ndarray,
+    *,
+    sensor_profile: ImuSensorProfile | None = None,
+    sensor_to_output: np.ndarray | None = None,
+) -> tuple[ImuSample, ...]:
     """Adapt production typed-ledger rows without sorting or nominal timing.
 
-    The conversion is the documented JY61P range used by the existing ingest
-    path: accelerometer raw/2048 g and gyroscope raw/16.384 deg/s.
+    Sensor scale is selected by unit identity.  This keeps old B306/JY61P and
+    new B120/LSM6DSV32X units on one SI-valued estimator interface.
     """
     required = {"global_time_ns", "boot_epoch", "status", "acc_raw", "gyro_raw"}
     names = set(rows.dtype.names or ())
     if not required <= names:
         raise ValueError(f"typed ledger lacks fields: {sorted(required - names)}")
+    profile = profile_for_node(node_id) if sensor_profile is None else sensor_profile
     converted = []
     for row in rows:
         acc_raw = tuple(int(value) for value in row["acc_raw"])
         gyro_raw = tuple(int(value) for value in row["gyro_raw"])
+        accel, gyro = profile.raw_to_si(
+            np.asarray(acc_raw), np.asarray(gyro_raw), sensor_to_output=sensor_to_output,
+        )
         converted.append(
             ImuSample(
                 node_id=node_id,
                 global_time_ns=int(row["global_time_ns"]),
                 boot_epoch=int(row["boot_epoch"]),
-                accel_mps2=np.asarray(acc_raw, dtype=float) / 2048.0 * G,
-                gyro_rad_s=np.deg2rad(np.asarray(gyro_raw, dtype=float) / 16.384),
+                accel_mps2=accel,
+                gyro_rad_s=gyro,
                 accepted=int(row["status"]) == 1,
                 acc_raw=acc_raw,
                 gyro_raw=gyro_raw,

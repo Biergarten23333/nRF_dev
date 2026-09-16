@@ -17,8 +17,6 @@ from typing import Any
 
 import numpy as np
 
-from tools.build_c2_h01_imu_dead_reckoning import _extract_data
-
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -32,6 +30,10 @@ def _sha256(path: Path) -> str:
 
 
 def _load_panel(path: Path, action: str) -> tuple[dict[str, Any], dict[str, Any]]:
+    # Keep the heavy QMT-dependent extractor out of the module import path so
+    # callers that only reuse the standalone HTML renderer do not need QMT.
+    from tools.build_c2_h01_imu_dead_reckoning import _extract_data
+
     data, _start, _stop = _extract_data(path.read_text(encoding="utf-8"))
     episode = next(row for row in data["episodes"] if row["id"] == action)
     scene = data["worldMotionDiagnostic"]["uwb_scene"]
@@ -104,7 +106,9 @@ def _html(
     right_label: str,
     left_drift: str,
     right_drift: str,
+    render_style: str,
 ) -> str:
+    action_label = str(audit["action"])
     encoded_left = json.dumps(left, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
     encoded_right = json.dumps(right, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
     encoded_audit = json.dumps(audit, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
@@ -120,7 +124,7 @@ def _html(
     ).replace("</", "<\\/")
     return f"""<!doctype html>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>BioSpur C2 · H02 触地融合固定世界 A/B</title>
+<title>BioSpur C2 · {action_label} 固定世界 A/B</title>
 <style>
 :root{{color-scheme:dark;font-family:"Noto Sans CJK SC","Noto Sans SC",system-ui,sans-serif}}
 *{{box-sizing:border-box}}body{{margin:0;background:#0e1318;color:#eef2f6;overflow:hidden}}
@@ -133,11 +137,11 @@ button[aria-pressed=true]{{border:2px solid #3e9ae8;color:#7cc2ff;padding:5px 8p
 footer{{padding:8px 12px 10px;border-top:1px solid;display:grid;grid-template-columns:auto 1fr auto;gap:11px;align-items:center}}#scrub{{width:100%}}.legend{{font-size:12px;color:#b7c0ca;white-space:nowrap}}
 @media(max-width:850px){{h1{{width:100%}}footer{{grid-template-columns:auto 1fr}}.legend{{grid-column:1/-1;white-space:normal}}}}
 </style>
-<div id="app"><header><h1>BioSpur C2 · H02 触地融合固定世界 A/B</h1><button id="play">播放</button><select id="speed"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select><span>同步相机：</span><button class="view" data-view="front">前方</button><button class="view" data-view="oblique" aria-pressed="true">斜前方</button><button class="view" data-view="rear">后方</button><button class="view" data-view="side">右侧</button><button class="view" data-view="top">上方</button><span id="camera">同一相机：斜前方</span></header>
-<div id="stage"><canvas id="canvas"></canvas><div id="notice">只显示既有计算轨迹：无显示端 IK、脚位固定、root 修复或逐帧贴地</div></div>
+<div id="app"><header><h1>BioSpur C2 · {action_label} 固定世界 A/B</h1><button id="play">播放</button><select id="speed"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select><span>同步相机：</span><button class="view" data-view="front">前方</button><button class="view" data-view="oblique" aria-pressed="true">斜前方</button><button class="view" data-view="rear">后方</button><button class="view" data-view="side">右侧</button><button class="view" data-view="top">上方</button><span id="camera">同一相机：斜前方</span></header>
+<div id="stage"><canvas id="canvas"></canvas><div id="notice">左右均显示各自求解输出；查看器不再修改轨迹、固定脚位或逐帧贴地</div></div>
 <footer><span id="time">0.000 s</span><input id="scrub" type="range" min="0" max="1" step="1"><span class="legend">同一时刻 · 同一世界相机 · 同一 A–H UWB 体积 · 拖动/滚轮同步</span></footer></div>
 <script>
-const LEFT={encoded_left},RIGHT={encoded_right},AUDIT={encoded_audit},LABELS={labels};
+const LEFT={encoded_left},RIGHT={encoded_right},AUDIT={encoded_audit},LABELS={labels},RENDER_STYLE={json.dumps(render_style)};
 const canvas=document.getElementById('canvas'),ctx=canvas.getContext('2d'),playButton=document.getElementById('play'),speed=document.getElementById('speed'),scrub=document.getElementById('scrub'),timeLabel=document.getElementById('time'),cameraLabel=document.getElementById('camera');
 const duration=AUDIT.common_duration_s,scene=LEFT.uwbScene,lo=scene.padded_bounds_output_m.min,hi=scene.padded_bounds_output_m.max,center=lo.map((v,i)=>(v+hi[i])/2);
 const EDGES=[[0,1],[1,2],[2,3],[3,0],[4,5],[5,6],[6,7],[7,4],[0,4],[1,5],[2,6],[3,7]];
@@ -152,10 +156,46 @@ function frame(panel){{const e=panel.episode,[a,b,u]=bracket(e.time,playhead),fa
 function tagState(panel,a,b,u){{const e=panel.episode;if(!e.uwbTagProxyPositions)return null;const p=e.uwbTagProxyPositions[a].map((q,i)=>lerp(q,e.uwbTagProxyPositions[b][i],u)),trusted=e.uwbTagProxyTrusted?e.uwbTagProxyTrusted[a]:p.map(()=>true);return{{p,trusted,names:e.uwbTagProxyNodeNames}}}}
 function drawLine(a,b,x0,w,h){{const p=project(a,x0,w,h),q=project(b,x0,w,h);ctx.beginPath();ctx.moveTo(p[0],p[1]);ctx.lineTo(q[0],q[1]);ctx.stroke()}}
 function drawBox(bounds,x0,w,h,color,width,dash){{const c=corners(bounds);ctx.strokeStyle=color;ctx.lineWidth=width;ctx.setLineDash(dash);for(const [a,b] of EDGES)drawLine(c[a],c[b],x0,w,h);ctx.setLineDash([])}}
+function vadd(a,b,s=1){{return[a[0]+s*b[0],a[1]+s*b[1],a[2]+s*b[2]]}}
+function vsub(a,b){{return[a[0]-b[0],a[1]-b[1],a[2]-b[2]]}}
+function vunit(a){{const n=Math.max(1e-9,Math.hypot(a[0],a[1],a[2]));return[a[0]/n,a[1]/n,a[2]/n]}}
+function capsule(a,b,radius,color,edge,depth){{return{{kind:'capsule',a,b,radius,color,edge,depth}}}}
+function disk(center,radius,color,edge,depth){{return{{kind:'disk',center,radius,color,edge,depth}}}}
+function polygon(points,color,edge,depth){{return{{kind:'polygon',points,color,edge,depth}}}}
+function drawMannequin(panel,rows,x0,w,h){{
+  const palette={{skin:'#f0f0ed',shade:'#d5d8d9',edge:'#717983'}},ji=Object.fromEntries(panel.jointNames.map((name,index)=>[name,index]));
+  const p=name=>rows[ji[name]],screen=point=>project(point,x0,w,h),bodyUp=vunit(vsub(p('shoulder_mid'),p('pelvis_center'))),neckTop=vadd(p('shoulder_mid'),bodyUp,.075),headCenter=vadd(neckTop,bodyUp,.105),shapes=[];
+  const addBone=(a,b,radius,color=palette.skin)=>{{const pa=screen(p(a)),pb=screen(p(b));shapes.push(capsule(pa,pb,radius,color,palette.edge,(pa[2]+pb[2])/2))}};
+  addBone('shoulder_left','elbow_left',.055);addBone('elbow_left','wrist_left',.045,palette.shade);
+  addBone('shoulder_right','elbow_right',.055);addBone('elbow_right','wrist_right',.045,palette.shade);
+  addBone('hip_left','knee_left',.074);addBone('knee_left','ankle_left',.061,palette.shade);
+  addBone('hip_right','knee_right',.074);addBone('knee_right','ankle_right',.061,palette.shade);
+  const torso=['shoulder_left','shoulder_right','hip_right','hip_left'].map(name=>screen(p(name)));
+  shapes.push(polygon(torso,palette.skin,palette.edge,torso.reduce((s,q)=>s+q[2],0)/4));
+  const pelvis=['hip_left','hip_right','pelvis_center'].map(name=>screen(p(name)));
+  shapes.push(polygon(pelvis,palette.shade,palette.edge,pelvis.reduce((s,q)=>s+q[2],0)/3));
+  const neckA=screen(p('shoulder_mid')),neckB=screen(neckTop),head=screen(headCenter);
+  shapes.push(capsule(neckA,neckB,.042,palette.shade,palette.edge,(neckA[2]+neckB[2])/2));shapes.push(disk(head,.092,palette.skin,palette.edge,head[2]));
+  for(const name of ['wrist_left','wrist_right']){{const q=screen(p(name));shapes.push(disk(q,.047,palette.skin,palette.edge,q[2]))}}
+  for(const name of ['ankle_left','ankle_right']){{const q=screen(p(name));shapes.push(disk(q,.062,palette.shade,palette.edge,q[2]))}}
+  shapes.sort((a,b)=>a.depth-b.depth);const scale=panelScale(w,h);
+  for(const shape of shapes){{ctx.fillStyle=shape.color;ctx.strokeStyle=shape.edge;ctx.lineJoin='round';ctx.lineCap='round';
+    if(shape.kind==='capsule'){{ctx.lineWidth=Math.max(2,2*shape.radius*scale+3);ctx.beginPath();ctx.moveTo(shape.a[0],shape.a[1]);ctx.lineTo(shape.b[0],shape.b[1]);ctx.stroke();ctx.strokeStyle=shape.color;ctx.lineWidth=Math.max(1,2*shape.radius*scale);ctx.beginPath();ctx.moveTo(shape.a[0],shape.a[1]);ctx.lineTo(shape.b[0],shape.b[1]);ctx.stroke()}}
+    else if(shape.kind==='disk'){{ctx.lineWidth=2;ctx.beginPath();ctx.arc(shape.center[0],shape.center[1],shape.radius*scale,0,Math.PI*2);ctx.fill();ctx.stroke()}}
+    else{{ctx.lineWidth=2;ctx.beginPath();shape.points.forEach((q,i)=>i?ctx.lineTo(q[0],q[1]):ctx.moveTo(q[0],q[1]));ctx.closePath();ctx.fill();ctx.stroke()}}
+  }}
+}}
+function drawSkeleton(panel,rows,x0,w,h){{
+  const pts=rows.map(q=>project(q,x0,w,h));
+  const lines=panel.lines.map(row=>[...row,(pts[row[0]][2]+pts[row[1]][2])/2]).sort((a,b)=>a[3]-b[3]);
+  ctx.lineCap='round';ctx.lineJoin='round';
+  for(const [a,b,side] of lines){{ctx.strokeStyle=side==='left'?'#50a8f5':side==='right'?'#ff9b45':'#edf2f7';ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(pts[a][0],pts[a][1]);ctx.lineTo(pts[b][0],pts[b][1]);ctx.stroke()}}
+  ctx.fillStyle='#e3e8ed';for(const p of pts){{ctx.beginPath();ctx.arc(p[0],p[1],2.5,0,Math.PI*2);ctx.fill()}}
+}}
 function drawPanel(panel,x0,w,h,label,drift){{ctx.fillStyle='#0f1419';ctx.fillRect(x0,0,w,h);drawBox(scene.padded_bounds_output_m,x0,w,h,'rgba(205,214,223,.68)',1.5,[]);drawBox(scene.anchor_bounds_output_m,x0,w,h,'rgba(73,163,255,.78)',1.3,[7,5]);
   ctx.font='bold 11px sans-serif';for(const [name,q] of Object.entries(scene.anchors_output_m)){{const p=project(q,x0,w,h);ctx.fillStyle='#ffd166';ctx.beginPath();ctx.arc(p[0],p[1],3.5,0,Math.PI*2);ctx.fill();ctx.fillText(name,p[0]+5,p[1]-4)}}
   const z0=scene.anchors_output_m.A,z1=[z0[0],z0[1],z0[2]+.7];ctx.strokeStyle='#4ade80';ctx.lineWidth=2;drawLine(z0,z1,x0,w,h);const zp=project(z1,x0,w,h);ctx.fillStyle='#4ade80';ctx.fillText('世界 Z ↑',zp[0]+5,zp[1]-4);
-  const f=frame(panel),pts=f.rows.map(q=>project(q,x0,w,h)),lines=panel.lines.map(row=>[...row,(pts[row[0]][2]+pts[row[1]][2])/2]).sort((a,b)=>a[3]-b[3]);ctx.lineCap='round';ctx.lineJoin='round';for(const [a,b,side] of lines){{ctx.strokeStyle=side==='left'?'#50a8f5':side==='right'?'#ff9b45':'#edf2f7';ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(pts[a][0],pts[a][1]);ctx.lineTo(pts[b][0],pts[b][1]);ctx.stroke()}}ctx.fillStyle='#e3e8ed';for(const p of pts){{ctx.beginPath();ctx.arc(p[0],p[1],2.5,0,Math.PI*2);ctx.fill()}}
+  const f=frame(panel);if(RENDER_STYLE==='mannequin')drawMannequin(panel,f.rows,x0,w,h);else drawSkeleton(panel,f.rows,x0,w,h);
   const tags=tagState(panel,f.a,f.b,f.u);if(tags)tags.p.forEach((q,i)=>{{const p=project(q,x0,w,h);ctx.fillStyle=tags.trusted[i]?'#22c55e':'#f472b6';ctx.beginPath();ctx.arc(p[0],p[1],3.2,0,Math.PI*2);ctx.fill()}});
   ctx.textAlign='center';ctx.fillStyle='#eef2f6';ctx.font='700 16px sans-serif';ctx.fillText(label,x0+w/2,27);ctx.fillStyle='#ffcc70';ctx.font='12px sans-serif';ctx.fillText(drift,x0+w/2,47);ctx.fillStyle='#aeb9c4';ctx.fillText(`关键帧 ${{f.a+1}}/${{panel.episode.frames.length}} · t=${{playhead.toFixed(3)}}s`,x0+w/2,h-15);ctx.textAlign='start';}}
 function draw(){{const r=canvas.getBoundingClientRect(),w=r.width,h=r.height,half=w/2;ctx.clearRect(0,0,w,h);drawPanel(LEFT,0,half,h,LABELS.left,LABELS.leftDrift);drawPanel(RIGHT,half,half,h,LABELS.right,LABELS.rightDrift);ctx.strokeStyle='#687581';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(half,0);ctx.lineTo(half,h);ctx.stroke();timeLabel.textContent=playhead.toFixed(3)+' s';scrub.value=String(Math.round(playhead*1000))}}
@@ -176,6 +216,11 @@ def main() -> int:
     parser.add_argument("--right-label", default="右：native200 analytic IK + 统一融合")
     parser.add_argument("--left-drift", required=True)
     parser.add_argument("--right-drift", required=True)
+    parser.add_argument(
+        "--render-style",
+        choices=("skeleton", "mannequin"),
+        default="skeleton",
+    )
     args = parser.parse_args()
     paths = [args.left_viewer.resolve(), args.right_viewer.resolve(), args.output.resolve()]
     if any(path != ROOT and ROOT not in path.parents for path in paths):
@@ -185,7 +230,7 @@ def main() -> int:
     audit = _audit(left, right, left_source, right_source)
     output = paths[2]
     output.mkdir(parents=False, exist_ok=False)
-    html_path = output / "c2_H02_contact_v5_vs_unified_fixed_world_ab.html"
+    html_path = output / f"c2_{args.action}_fixed_world_ab.html"
     html_path.write_text(
         _html(
             left,
@@ -195,6 +240,7 @@ def main() -> int:
             right_label=args.right_label,
             left_drift=args.left_drift,
             right_drift=args.right_drift,
+            render_style=args.render_style,
         ),
         encoding="utf-8",
     )
@@ -209,6 +255,7 @@ def main() -> int:
             "left_drift": args.left_drift,
             "right_drift": args.right_drift,
         },
+        "render_style": args.render_style,
     }
     manifest_path = output / "MANIFEST.json"
     manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")

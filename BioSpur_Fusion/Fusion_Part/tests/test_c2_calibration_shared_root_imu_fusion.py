@@ -10,9 +10,9 @@ import run_c2_h01_shared_root_imu_fusion as runner
 from run_c2_h01_shared_root_imu_fusion import (
     EPOCH_NS,
     _add_position_payload_once,
+    _articulated_pose_install_decision,
     _articulated_mechanism_nondegeneracy_gate,
     _apply_measurement_time_footholds_to_observation,
-    _positive_swing_cues,
     _contact_manifold_quality_state,
     _confirmed_measurement_footholds,
     _effective_body_update,
@@ -35,6 +35,7 @@ from biospur_fusion.c2_uwb_calibration.shared_root import SharedRangeLink
 from biospur_fusion.c2_uwb_root_world.ankle_contact import (
     DualFootFootholdCorrector,
     FootContactEvidence,
+    positive_swing_cues,
 )
 from biospur_fusion.root_r3.models import RootState
 
@@ -1132,22 +1133,113 @@ def test_prior_held_foothold_is_not_exposed_to_uwb_contact_residual() -> None:
 def test_prior_held_episode_requires_accepted_uwb_before_dropout() -> None:
     times = np.arange(0.0, 1.0, 0.1)
     prior = np.zeros((len(times), 2), dtype=bool)
+    confirmed = np.zeros((len(times), 2), dtype=bool)
     prior[1:7, 0] = True
     rejected = [{"availability_time_s": 0.4, "accepted": False}]
     accepted = [{"availability_time_s": 0.4, "accepted": True}]
 
     failed = _prior_held_uwb_gate(
-        times, prior, rejected,
+        times, prior, confirmed, rejected,
         bootstrap_time_s=0.0, dropout_s=0.36, required=True,
     )
     passed = _prior_held_uwb_gate(
-        times, prior, accepted,
+        times, prior, confirmed, accepted,
         bootstrap_time_s=0.0, dropout_s=0.36, required=True,
     )
 
     assert failed["reason"] == "PRIOR_STARVED_UWB"
     assert not failed["pass"]
     assert passed["pass"]
+
+
+def test_prior_held_episode_does_not_demand_uwb_over_confirmed_other_foot() -> None:
+    times = np.arange(0.0, 1.0, 0.1)
+    prior = np.zeros((len(times), 2), dtype=bool)
+    confirmed = np.zeros((len(times), 2), dtype=bool)
+    prior[1:7, 0] = True
+    confirmed[1:7, 1] = True
+
+    result = _prior_held_uwb_gate(
+        times,
+        prior,
+        confirmed,
+        [{"availability_time_s": 0.4, "accepted": False}],
+        bootstrap_time_s=0.0,
+        dropout_s=0.36,
+        required=True,
+    )
+
+    assert result["pass"]
+    assert result["reason"] == "PASS"
+    assert result["episodes"] == []
+
+
+def test_delayed_articulated_update_rejects_changed_primary_support_owner() -> None:
+    accepted, reason = _articulated_pose_install_decision(
+        pose_owner_enabled=True,
+        root_update_accepted=True,
+        articulated_update_accepted=True,
+        measurement_primary_side="left",
+        availability_primary_side="right",
+        measurement_ik_has_foothold_constraint=True,
+        availability_has_root_support_owner=True,
+        measurement_gauge_shift_xy_m=0.01,
+        maximum_gauge_shift_xy_m=0.06102,
+    )
+
+    assert not accepted
+    assert reason == "SUPPORT_OWNER_CHANGED_BEFORE_AVAILABILITY"
+
+
+def test_delayed_articulated_update_accepts_same_primary_support_owner() -> None:
+    accepted, reason = _articulated_pose_install_decision(
+        pose_owner_enabled=True,
+        root_update_accepted=True,
+        articulated_update_accepted=True,
+        measurement_primary_side="right",
+        availability_primary_side="right",
+        measurement_ik_has_foothold_constraint=True,
+        availability_has_root_support_owner=True,
+        measurement_gauge_shift_xy_m=0.01,
+        maximum_gauge_shift_xy_m=0.06102,
+    )
+
+    assert accepted
+    assert reason == "ACCEPTED"
+
+
+def test_delayed_articulated_update_rejects_changed_support_observability() -> None:
+    accepted, reason = _articulated_pose_install_decision(
+        pose_owner_enabled=True,
+        root_update_accepted=True,
+        articulated_update_accepted=True,
+        measurement_primary_side=None,
+        availability_primary_side="right",
+        measurement_ik_has_foothold_constraint=False,
+        availability_has_root_support_owner=True,
+        measurement_gauge_shift_xy_m=None,
+        maximum_gauge_shift_xy_m=0.06102,
+    )
+
+    assert not accepted
+    assert reason == "SUPPORT_OBSERVABILITY_CHANGED_BEFORE_AVAILABILITY"
+
+
+def test_delayed_articulated_update_rejects_excess_measurement_gauge_shift() -> None:
+    accepted, reason = _articulated_pose_install_decision(
+        pose_owner_enabled=True,
+        root_update_accepted=True,
+        articulated_update_accepted=True,
+        measurement_primary_side="right",
+        availability_primary_side="right",
+        measurement_ik_has_foothold_constraint=True,
+        availability_has_root_support_owner=True,
+        measurement_gauge_shift_xy_m=0.07,
+        maximum_gauge_shift_xy_m=0.06102,
+    )
+
+    assert not accepted
+    assert reason == "MEASUREMENT_POSE_GAUGE_SHIFT_EXCEEDED"
 
 
 def test_stationary_no_flight_prior_is_rejected_for_h01_before_io(tmp_path) -> None:
@@ -1187,7 +1279,7 @@ def test_raw_swing_cues_classify_bilateral_without_activity_prior() -> None:
         1.005, np.r_[[0.0, 0.0, 1.08], np.zeros(6)], covariance
     )
 
-    cues = _positive_swing_cues(
+    cues = positive_swing_cues(
         query_time_s=1.005,
         analytic_ankle_offset_world_m=dict(reversed(tuple(offsets.items()))),
         root_state=raised,
@@ -1240,7 +1332,7 @@ def test_raw_swing_cues_classify_unilateral_lift() -> None:
         1.005, np.r_[[0.0, 0.0, 1.08], np.zeros(6)], covariance
     )
 
-    cues = _positive_swing_cues(
+    cues = positive_swing_cues(
         query_time_s=1.005,
         analytic_ankle_offset_world_m=asymmetric,
         root_state=raised,

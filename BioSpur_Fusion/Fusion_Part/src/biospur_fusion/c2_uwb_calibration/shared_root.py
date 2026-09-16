@@ -24,6 +24,9 @@ class SharedRangeLink:
     link_dt_s: float
     sigma_m: float
     facing_score: float | None = None
+    information_weight: float = 1.0
+    body_occlusion_score: float = 0.0
+    body_occluder: str | None = None
 
 
 @dataclass(frozen=True)
@@ -116,6 +119,7 @@ def solve_shared_root(
     root_velocity_mps: np.ndarray | None = None,
     maximum_condition: float = 1e8,
     maximum_nfev: int = 50,
+    root_bounds_m: tuple[np.ndarray, np.ndarray] | None = None,
 ) -> SharedRootResult:
     """Solve one 3-D root against ranges from multiple body-worn tags.
 
@@ -133,6 +137,19 @@ def solve_shared_root(
     )
     if not np.all(np.isfinite(initial)) or not np.all(np.isfinite(velocity)):
         raise ValueError("initial root and velocity must be finite")
+    if root_bounds_m is None:
+        lower = np.full(3, -np.inf)
+        upper = np.full(3, np.inf)
+    else:
+        lower = np.asarray(root_bounds_m[0], dtype=float).reshape(3)
+        upper = np.asarray(root_bounds_m[1], dtype=float).reshape(3)
+        if (
+            not np.isfinite(lower).all()
+            or not np.isfinite(upper).all()
+            or np.any(lower >= upper)
+        ):
+            raise ValueError("root bounds must be finite ordered 3-vectors")
+        initial = np.clip(initial, lower, upper)
     if len(links) < 4:
         return _failure(initial, "FEWER_THAN_FOUR_LINKS")
 
@@ -154,6 +171,9 @@ def solve_shared_root(
     ranges = np.asarray([link.range_m for link in links], dtype=float)
     link_dt = np.asarray([link.link_dt_s for link in links], dtype=float)
     sigma = np.asarray([link.sigma_m for link in links], dtype=float)
+    information_weight = np.asarray(
+        [link.information_weight for link in links], dtype=float
+    )
     if anchor_rows.shape != (len(links), 3) or offsets.shape != (len(links), 3):
         raise ValueError("anchors and tag offsets must be 3-D")
     if not (
@@ -162,19 +182,24 @@ def solve_shared_root(
         and np.all(np.isfinite(ranges))
         and np.all(np.isfinite(link_dt))
         and np.all(np.isfinite(sigma))
+        and np.all(np.isfinite(information_weight))
         and np.all(ranges > 0.0)
         and np.all(sigma > 0.0)
+        and np.all((0.0 < information_weight) & (information_weight <= 1.0))
     ):
-        raise ValueError("range links must be finite with positive range and sigma")
+        raise ValueError(
+            "range links must be finite with positive range, sigma, and weight"
+        )
 
     timed_offsets = offsets + link_dt[:, None] * velocity
+    effective_sigma = sigma / np.sqrt(information_weight)
 
     def physical_residual(root: np.ndarray) -> np.ndarray:
         tag = root[None, :] + timed_offsets
         return ranges - np.linalg.norm(anchor_rows - tag, axis=1)
 
     def residual(root: np.ndarray) -> np.ndarray:
-        return physical_residual(root) / sigma
+        return physical_residual(root) / effective_sigma
 
     def jacobian(root: np.ndarray) -> np.ndarray:
         tag = root[None, :] + timed_offsets
@@ -182,7 +207,7 @@ def solve_shared_root(
         distance = np.linalg.norm(delta, axis=1)
         if np.any(distance <= np.finfo(float).eps):
             raise ValueError("range derivative is singular at an anchor")
-        return delta / distance[:, None] / sigma[:, None]
+        return delta / distance[:, None] / effective_sigma[:, None]
 
     try:
         optimized = least_squares(
@@ -193,11 +218,12 @@ def solve_shared_root(
             f_scale=1.5,
             x_scale="jac",
             max_nfev=int(maximum_nfev),
+            bounds=(lower, upper),
         )
         root = np.asarray(optimized.x, dtype=float)
         standardized = residual(root)
         physical = physical_residual(root)
-        geometry = jacobian(root) * sigma[:, None]
+        geometry = jacobian(root) * effective_sigma[:, None]
         singular = np.linalg.svd(geometry, compute_uv=False)
     except (ValueError, FloatingPointError, np.linalg.LinAlgError):
         return _failure(initial, "NUMERICAL_FAILURE")

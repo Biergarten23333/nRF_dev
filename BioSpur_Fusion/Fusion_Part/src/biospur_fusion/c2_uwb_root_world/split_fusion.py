@@ -12,13 +12,19 @@ at most one support foot and never creates a ground-position or dual-foot lock.
 from __future__ import annotations
 
 from collections import defaultdict, deque
+from copy import deepcopy
 from dataclasses import dataclass
+import hashlib
+import hmac
+from itertools import combinations
+import json
 import math
+import pickle
 
 import numpy as np
 
 from biospur_fusion.root_r3.estimator import _regularize
-from biospur_fusion.root_r3.models import RootState
+from biospur_fusion.root_r3.models import PositionObservation, RootState
 
 from .tight_range import RawRangeDecision, _replace_marginal_covariance
 
@@ -71,6 +77,11 @@ class DriftCorrectionDecision:
     lag_s: np.ndarray
     innovation_difference_m: np.ndarray
     effective_weight: np.ndarray
+    bias_fit_status: str = "NOT_CONFIGURED"
+    bias_fit_inlier_epochs: int = 0
+    bias_fit_robust_standardized_rms: float | None = None
+    bias_fit_rank: int = 0
+    bias_fit_condition: float = math.inf
 
 
 @dataclass(frozen=True)
@@ -81,6 +92,35 @@ class _LinkObservation:
     robust_weight: float
     range_bias_m: float
     cumulative_absolute_position_correction_m: np.ndarray
+
+
+@dataclass(frozen=True)
+class PreparedRangeDriftUpdate:
+    """One owner-bound, velocity-only drift update evaluated without mutation."""
+
+    authority: object
+    base_revision: int
+    base_owner_digest: str
+    candidate_owner_digest: str
+    candidate_state: RootState
+    decision: DriftCorrectionDecision
+    digest: str
+    _base_fields: dict[str, object]
+    _candidate_fields: dict[str, object]
+
+
+def _drift_fields_digest(fields: dict[str, object]) -> str:
+    return hashlib.sha256(pickle.dumps(fields, protocol=5)).hexdigest()
+
+
+def _prepared_drift_digest(plan: PreparedRangeDriftUpdate) -> str:
+    return hashlib.sha256(pickle.dumps((
+        plan.base_revision, plan.base_owner_digest, plan.candidate_owner_digest,
+        plan.candidate_state.time_s, plan.candidate_state.vector.tobytes(),
+        plan.candidate_state.covariance.tobytes(), plan.decision.accepted,
+        plan.decision.reason, plan.decision.velocity_delta_mps.tobytes(),
+        plan.decision.accelerometer_bias_delta_mps2.tobytes(),
+    ), protocol=5)).hexdigest()
 
 
 class FixedLagRangeDriftCorrector:
@@ -98,6 +138,98 @@ class FixedLagRangeDriftCorrector:
         self._history: dict[tuple[str, int], deque[_LinkObservation]] = defaultdict(deque)
         self._pending: list[tuple[str, int, float, float, float, np.ndarray]] = []
         self._last_update_s: float | None = None
+        self.__transaction_authority = object()
+        self.__consumed_prepared: set[str] = set()
+        self._revision = 0
+
+    def _transaction_fields(self) -> dict[str, object]:
+        return {
+            "history": deepcopy(self._history),
+            "pending": deepcopy(self._pending),
+            "last_update_s": self._last_update_s,
+            "revision": self._revision,
+        }
+
+    def owner_digest(self) -> str:
+        return _drift_fields_digest(self._transaction_fields())
+
+    def _restore_transaction_fields(self, fields: dict[str, object]) -> None:
+        restored = deepcopy(fields)
+        self._history = restored["history"]
+        self._pending = restored["pending"]
+        self._last_update_s = restored["last_update_s"]
+        self._revision = restored["revision"]
+
+    def prepare_velocity_only(
+        self, state: RootState, **kwargs: object,
+    ) -> PreparedRangeDriftUpdate:
+        """Evaluate the temporal raw-link channel with bias explicitly disabled."""
+
+        candidate = FixedLagRangeDriftCorrector(self.config)
+        candidate._history = deepcopy(self._history)
+        candidate._pending = deepcopy(self._pending)
+        candidate._last_update_s = self._last_update_s
+        candidate._revision = self._revision
+        if kwargs.pop("rotation_world_from_sensor", None) is not None:
+            raise ValueError("velocity-only drift must not accept caller rotation")
+        updated, decision = candidate.observe(
+            state, bias_enabled=False, rotation_world_from_sensor=None, **kwargs,
+        )
+        candidate._revision += 1
+        fields = candidate._transaction_fields()
+        base_fields = self._transaction_fields()
+        blank = PreparedRangeDriftUpdate(
+            self.__transaction_authority, self._revision, self.owner_digest(),
+            _drift_fields_digest(fields), updated, decision, "",
+            base_fields, fields,
+        )
+        return PreparedRangeDriftUpdate(**{
+            **blank.__dict__, "digest": _prepared_drift_digest(blank),
+        })
+
+    def prevalidate_prepared(self, plan: PreparedRangeDriftUpdate) -> None:
+        if (
+            type(plan) is not PreparedRangeDriftUpdate
+            or plan.authority is not self.__transaction_authority
+            or plan.digest in self.__consumed_prepared
+            or plan.base_revision != self._revision
+            or not hmac.compare_digest(plan.base_owner_digest, self.owner_digest())
+            or not hmac.compare_digest(plan.base_owner_digest,
+                                       _drift_fields_digest(plan._base_fields))
+            or not hmac.compare_digest(plan.candidate_owner_digest,
+                                       _drift_fields_digest(plan._candidate_fields))
+            or not hmac.compare_digest(plan.digest, _prepared_drift_digest(plan))
+            or np.any(plan.decision.accelerometer_bias_delta_mps2 != 0.0)
+        ):
+            raise RuntimeError("STALE_FORGED_OR_FOREIGN_RANGE_DRIFT_PLAN")
+
+    def commit_prepared(self, plan: PreparedRangeDriftUpdate) -> DriftCorrectionDecision:
+        self.prevalidate_prepared(plan)
+        fields = deepcopy(plan._candidate_fields)
+        self._history = fields["history"]
+        self._pending = fields["pending"]
+        self._last_update_s = fields["last_update_s"]
+        self._revision = fields["revision"]
+        self.__consumed_prepared.add(plan.digest)
+        return plan.decision
+
+    def rollback_committed_prepared(self, plan: PreparedRangeDriftUpdate) -> None:
+        """Restore one just-committed plan while permanently consuming it."""
+
+        if (
+            type(plan) is not PreparedRangeDriftUpdate
+            or plan.authority is not self.__transaction_authority
+            or plan.digest not in self.__consumed_prepared
+            or not hmac.compare_digest(plan.digest, _prepared_drift_digest(plan))
+            or not hmac.compare_digest(
+                plan.candidate_owner_digest, self.owner_digest(),
+            )
+            or not hmac.compare_digest(
+                plan.base_owner_digest, _drift_fields_digest(plan._base_fields),
+            )
+        ):
+            raise RuntimeError("FOREIGN_OR_NONCURRENT_RANGE_DRIFT_ROLLBACK")
+        self._restore_transaction_fields(plan._base_fields)
 
     @staticmethod
     def _limit(vector: np.ndarray, maximum_norm: float) -> np.ndarray:
@@ -124,17 +256,23 @@ class FixedLagRangeDriftCorrector:
         anchors_m: np.ndarray,
         tag_offset_world_m: np.ndarray,
         tag_offset_velocity_world_mps: np.ndarray,
-        rotation_world_from_sensor: np.ndarray,
+        rotation_world_from_sensor: np.ndarray | None,
         range_bias_m: np.ndarray | None = None,
         cumulative_absolute_position_correction_m: np.ndarray | None = None,
+        bias_enabled: bool = True,
     ) -> tuple[RootState, DriftCorrectionDecision]:
+        if type(bias_enabled) is not bool:
+            raise TypeError("drift bias-enable mode must be bool")
         if not decision.accepted or decision.reference_epoch_s is None:
             return state, self._empty("RAW_RANGE_UPDATE_REJECTED", state.time_s)
         epoch = float(decision.reference_epoch_s)
         anchors = np.asarray(anchors_m, float)
         offset = np.asarray(tag_offset_world_m, float)
         offset_velocity = np.asarray(tag_offset_velocity_world_mps, float)
-        rotation = np.asarray(rotation_world_from_sensor, float)
+        rotation = (
+            None if rotation_world_from_sensor is None
+            else np.asarray(rotation_world_from_sensor, float)
+        )
         range_bias = (
             np.zeros(8) if range_bias_m is None else np.asarray(range_bias_m, float)
         )
@@ -145,8 +283,12 @@ class FixedLagRangeDriftCorrector:
         )
         if anchors.shape != (8, 3) or offset.shape != (3,) or offset_velocity.shape != (3,):
             raise ValueError("invalid fixed-lag drift geometry")
-        if rotation.shape != (3, 3) or not np.isfinite(rotation).all():
-            raise ValueError("invalid drift sensor rotation")
+        if bias_enabled:
+            if (rotation is None or rotation.shape != (3, 3)
+                    or not np.isfinite(rotation).all()):
+                raise ValueError("invalid drift sensor rotation")
+        elif rotation is not None:
+            raise ValueError("velocity-only drift cannot consume sensor rotation")
         if range_bias.shape != (8,) or cumulative_absolute.shape != (3,):
             raise ValueError("invalid drift-channel correction ledger")
 
@@ -173,10 +315,10 @@ class FixedLagRangeDriftCorrector:
                 distance = float(np.linalg.norm(delta))
                 if distance > 1e-9:
                     unit = delta / distance
-                    design = np.r_[
-                        lag * unit,
-                        -0.5 * lag * lag * (unit @ rotation),
-                    ]
+                    design = (
+                        np.r_[lag * unit, -0.5 * lag * lag * (unit @ rotation)]
+                        if bias_enabled else lag * unit
+                    )
                     sigma = math.hypot(float(decision.sigma_m[local]), previous.sigma_m)
                     weight = min(float(decision.robust_weights[local]), previous.robust_weight)
                     if weight >= self.config.minimum_robust_weight:
@@ -225,7 +367,10 @@ class FixedLagRangeDriftCorrector:
         inverse_variance = np.asarray([row[4] for row in rows])
         # Scale only for a dimensionally meaningful rank audit. The numerical
         # update itself uses the state's active covariance in native units.
-        audit_scale = np.diag([1.0, 1.0, 1.0, 0.1, 0.1, 0.1])
+        audit_scale = np.diag(
+            [1.0, 1.0, 1.0, 0.1, 0.1, 0.1]
+            if bias_enabled else [1.0, 1.0, 1.0]
+        )
         whitened = np.sqrt(inverse_variance)[:, None] * design @ audit_scale
         singular = np.linalg.svd(whitened, compute_uv=False)
         tolerance = singular[0] * self.config.rank_relative_tolerance
@@ -245,7 +390,7 @@ class FixedLagRangeDriftCorrector:
         # accelerometer-bias columns are confounded with velocity and must not
         # receive a prior-driven numerical update. Bias becomes active only
         # when all six dimensionally scaled modes pass the declared rank gate.
-        bias_observable = rank == 6
+        bias_observable = bias_enabled and rank == 6
         active = np.arange(3, 9) if bias_observable else np.arange(3, 6)
         active_design = design if bias_observable else design[:, :3]
         prior_covariance = _regularize(
@@ -295,6 +440,806 @@ class FixedLagRangeDriftCorrector:
         self._history.clear()
         self._pending.clear()
         self._last_update_s = epoch
+        return updated, result
+
+
+@dataclass(frozen=True)
+class _ConsensusObservation:
+    epoch_s: float
+    availability_time_s: float
+    source_sequence: int
+    source_identity: tuple[str, tuple[int, ...]]
+    corrected_innovation_m: np.ndarray
+    covariance_m2: np.ndarray
+    position_bias_jacobian_s2: np.ndarray | None
+
+
+@dataclass(frozen=True)
+class ConsensusAccelerationBiasConfig:
+    """Explicit observability policy for the consensus acceleration-bias fit.
+
+    No production numbers are supplied here.  A caller must own every gate;
+    omitting this policy keeps the established velocity-only behaviour.
+    """
+
+    minimum_distinct_epochs: int
+    maximum_scaled_condition: float
+    temporal_huber_threshold_sigma: float
+    maximum_robust_standardized_rms: float
+    maximum_accelerometer_bias_step_mps2: float
+    rotation_owner: str
+    rotation_action_id: str
+    minimum_inlier_epochs: int
+    maximum_bias_window_epochs: int
+    maximum_candidate_subsets: int
+
+    def validate(self) -> None:
+        if (
+            isinstance(self.minimum_distinct_epochs, bool)
+            or self.minimum_distinct_epochs < 3
+            or not self.rotation_owner
+            or not self.rotation_action_id
+            or isinstance(self.minimum_inlier_epochs, bool)
+            or self.minimum_inlier_epochs < self.minimum_distinct_epochs
+            or isinstance(self.maximum_bias_window_epochs, bool)
+            or self.maximum_bias_window_epochs < self.minimum_inlier_epochs
+            or isinstance(self.maximum_candidate_subsets, bool)
+            or self.maximum_candidate_subsets < 1
+            or any(not math.isfinite(value) or value <= 0.0 for value in (
+                self.maximum_scaled_condition,
+                self.temporal_huber_threshold_sigma,
+                self.maximum_robust_standardized_rms,
+                self.maximum_accelerometer_bias_step_mps2,
+            ))
+        ):
+            raise ValueError("invalid consensus acceleration-bias configuration")
+
+
+@dataclass(frozen=True)
+class ConsensusRotationObservation:
+    """Immutable causal association between consensus and native-200 rotation."""
+
+    association_measurement_time_s: float
+    source_measurement_time_s: float
+    availability_time_s: float
+    association_sequence: int
+    action_id: str
+    source_frame: int
+    source_span: int
+    next_source_measurement_time_s: float
+    next_source_frame: int
+    next_source_span: int
+    tag_id: str
+    anchors: tuple[int, ...]
+    rotation_owner: str
+    rotation_world_from_sensor: np.ndarray
+    canonical_digest: str
+
+    @staticmethod
+    def _digest_payload(
+        association_measurement_time_s: float,
+        source_measurement_time_s: float,
+        availability_time_s: float,
+        association_sequence: int,
+        action_id: str,
+        source_frame: int,
+        source_span: int,
+        next_source_measurement_time_s: float,
+        next_source_frame: int,
+        next_source_span: int,
+        tag_id: str,
+        anchors: tuple[int, ...],
+        rotation_owner: str,
+        rotation_world_from_sensor: np.ndarray,
+    ) -> str:
+        payload = {
+            "association_measurement_time_s": float(
+                association_measurement_time_s
+            ).hex(),
+            "source_measurement_time_s": float(source_measurement_time_s).hex(),
+            "availability_time_s": float(availability_time_s).hex(),
+            "association_sequence": int(association_sequence),
+            "action_id": str(action_id),
+            "source_frame": int(source_frame),
+            "source_span": int(source_span),
+            "next_source_measurement_time_s": float(
+                next_source_measurement_time_s
+            ).hex(),
+            "next_source_frame": int(next_source_frame),
+            "next_source_span": int(next_source_span),
+            "tag_id": str(tag_id),
+            "anchors": [int(anchor) for anchor in anchors],
+            "rotation_owner": str(rotation_owner),
+            "rotation_world_from_sensor": [
+                [float(value).hex() for value in row]
+                for row in np.asarray(rotation_world_from_sensor, dtype=float)
+            ],
+        }
+        encoded = json.dumps(
+            payload, sort_keys=True, separators=(",", ":"),
+        ).encode("ascii")
+        return hashlib.sha256(encoded).hexdigest()
+
+    @classmethod
+    def from_owner(
+        cls,
+        *,
+        association_measurement_time_s: float,
+        source_measurement_time_s: float,
+        availability_time_s: float,
+        association_sequence: int,
+        action_id: str,
+        source_frame: int,
+        source_span: int,
+        next_source_measurement_time_s: float,
+        next_source_frame: int,
+        next_source_span: int,
+        tag_id: str,
+        anchors: tuple[int, ...],
+        rotation_owner: str,
+        rotation_world_from_sensor: np.ndarray,
+    ) -> "ConsensusRotationObservation":
+        rotation = np.asarray(rotation_world_from_sensor, dtype=float).copy()
+        digest = cls._digest_payload(
+            association_measurement_time_s, source_measurement_time_s,
+            availability_time_s, association_sequence, action_id, source_frame,
+            source_span, next_source_measurement_time_s, next_source_frame,
+            next_source_span, tag_id, anchors, rotation_owner, rotation,
+        )
+        return cls(
+            association_measurement_time_s, source_measurement_time_s,
+            availability_time_s, association_sequence, action_id, source_frame,
+            source_span, next_source_measurement_time_s, next_source_frame,
+            next_source_span, tag_id, tuple(anchors), rotation_owner,
+            rotation, digest,
+        )
+
+    def __post_init__(self) -> None:
+        rotation = np.asarray(self.rotation_world_from_sensor, dtype=float).copy()
+        rotation.setflags(write=False)
+        object.__setattr__(self, "rotation_world_from_sensor", rotation)
+        object.__setattr__(self, "anchors", tuple(self.anchors))
+
+    def validate(self) -> None:
+        rotation = self.rotation_world_from_sensor
+        if (
+            not math.isfinite(self.association_measurement_time_s)
+            or not math.isfinite(self.source_measurement_time_s)
+            or not math.isfinite(self.availability_time_s)
+            or self.source_measurement_time_s
+            > self.association_measurement_time_s + 1e-12
+            or self.availability_time_s < self.source_measurement_time_s
+            or not math.isfinite(self.next_source_measurement_time_s)
+            or not (
+                self.source_measurement_time_s
+                <= self.association_measurement_time_s
+                < self.next_source_measurement_time_s
+            )
+            or self.next_source_measurement_time_s
+            - self.source_measurement_time_s > 0.005001
+            or isinstance(self.association_sequence, bool)
+            or not isinstance(self.association_sequence, (int, np.integer))
+            or self.association_sequence < 0
+            or not self.action_id
+            or isinstance(self.source_frame, bool)
+            or not isinstance(self.source_frame, (int, np.integer))
+            or self.source_frame < 0
+            or isinstance(self.source_span, bool)
+            or not isinstance(self.source_span, (int, np.integer))
+            or self.source_span < 0
+            or isinstance(self.next_source_frame, bool)
+            or not isinstance(self.next_source_frame, (int, np.integer))
+            or self.next_source_frame != self.source_frame + 1
+            or isinstance(self.next_source_span, bool)
+            or not isinstance(self.next_source_span, (int, np.integer))
+            or self.next_source_span != self.source_span
+            or not self.tag_id
+            or not self.anchors
+            or not self.rotation_owner
+            or rotation.shape != (3, 3)
+            or not np.isfinite(rotation).all()
+            or not np.allclose(rotation.T @ rotation, np.eye(3), rtol=0.0, atol=1e-8)
+            or not math.isclose(float(np.linalg.det(rotation)), 1.0, rel_tol=0.0, abs_tol=1e-8)
+        ):
+            raise ValueError("invalid consensus rotation observation")
+        expected = self._digest_payload(
+            self.association_measurement_time_s, self.source_measurement_time_s,
+            self.availability_time_s, self.association_sequence,
+            self.action_id, self.source_frame, self.source_span,
+            self.next_source_measurement_time_s, self.next_source_frame,
+            self.next_source_span, self.tag_id, self.anchors,
+            self.rotation_owner, rotation,
+        )
+        if self.canonical_digest != expected:
+            raise ValueError("consensus rotation digest mismatch")
+
+
+@dataclass(frozen=True)
+class FixedLagConsensusDriftConfig:
+    minimum_lag_s: float
+    maximum_lag_s: float
+    update_period_s: float
+    minimum_consensus_pairs: int
+    rank_relative_tolerance: float
+    maximum_velocity_step_mps: float
+    covariance_floor: float
+    acceleration_bias: ConsensusAccelerationBiasConfig | None = None
+
+    def validate(self) -> None:
+        if (
+            not 0.0 < self.minimum_lag_s < self.maximum_lag_s
+            or self.update_period_s < self.minimum_lag_s
+            or isinstance(self.minimum_consensus_pairs, bool)
+            or self.minimum_consensus_pairs < 1
+            or any(not math.isfinite(value) or value <= 0.0 for value in (
+                self.rank_relative_tolerance,
+                self.maximum_velocity_step_mps,
+                self.covariance_floor,
+            ))
+        ):
+            raise ValueError("invalid fixed-lag consensus drift configuration")
+        if self.acceleration_bias is not None:
+            self.acceleration_bias.validate()
+
+
+@dataclass(frozen=True)
+class _ConsensusBiasFitAudit:
+    accepted: bool
+    status: str
+    velocity_delta_mps: np.ndarray
+    accelerometer_bias_delta_mps2: np.ndarray
+    rank: int
+    condition: float
+    singular_values: np.ndarray
+    inlier_epochs: int
+    robust_standardized_rms: float | None
+
+
+class FixedLagConsensusDriftCorrector:
+    """Causal velocity/bias drift channel for body-root consensus positions.
+
+    Absolute UWB position corrections are removed from the finite difference
+    through an explicit cumulative ledger.  Missing source intervals clear
+    only this derivative history; world position, pose and calibration owners
+    remain untouched.  A 3-D position history cannot independently identify
+    instantaneous velocity and accelerometer bias from one difference.  When
+    an explicit bias policy and rotations are supplied, a multi-offset window
+    instead fits
+
+    ``e(t) = c + (t-t0) dv + (Jp(t)-Jp(t0)) dba``
+
+    where ``Jp`` is the causal position sensitivity obtained by integrating
+    ``Jv_dot=-R_world_from_sensor``.  Bias is committed only when all nine
+    scaled modes and the robust residual gate pass; otherwise the established
+    velocity-only update remains authoritative.
+    """
+
+    def __init__(self, config: FixedLagConsensusDriftConfig):
+        config.validate()
+        self.config = config
+        self._history: deque[_ConsensusObservation] = deque()
+        self._pending_design: list[np.ndarray] = []
+        self._pending_observed: list[np.ndarray] = []
+        self._pending_inverse_variance: list[np.ndarray] = []
+        self._last_update_s: float | None = None
+        self._last_measurement_time_s: float | None = None
+        self._last_availability_time_s: float | None = None
+        self._last_source_sequence: int | None = None
+        self._source_identity: tuple[str, tuple[int, ...]] | None = None
+        self._bias_position_jacobian_s2 = np.zeros((3, 3), dtype=float)
+        self._bias_velocity_jacobian_s = np.zeros((3, 3), dtype=float)
+        self._last_bias_rotation: np.ndarray | None = None
+        self._last_bias_measurement_time_s: float | None = None
+        self._last_rotation_availability_time_s: float | None = None
+        self._last_rotation_association_sequence: int | None = None
+        self._last_rotation_source_measurement_time_s: float | None = None
+        self._last_rotation_source_frame: int | None = None
+        self._last_rotation_source_span: int | None = None
+
+    def clear_derivative_history(self) -> None:
+        self._history.clear()
+        self._pending_design.clear()
+        self._pending_observed.clear()
+        self._pending_inverse_variance.clear()
+        self._last_update_s = None
+        self._bias_position_jacobian_s2.fill(0.0)
+        self._bias_velocity_jacobian_s.fill(0.0)
+        self._last_bias_rotation = None
+        self._last_bias_measurement_time_s = None
+
+    def _advance_bias_sensitivity(
+        self,
+        measurement_time_s: float,
+        rotation_world_from_sensor: np.ndarray,
+    ) -> np.ndarray | None:
+        """Advance the causal zero-order-held IMU bias sensitivity."""
+        if self.config.acceleration_bias is None:
+            return None
+        rotation = np.asarray(rotation_world_from_sensor, dtype=float)
+        if rotation.shape != (3, 3) or not np.isfinite(rotation).all():
+            raise ValueError("invalid consensus bias rotation")
+        if self._last_bias_measurement_time_s is not None:
+            dt = measurement_time_s - self._last_bias_measurement_time_s
+            if dt <= 0.0:
+                raise ValueError("noncausal consensus bias rotation")
+            if self._last_bias_rotation is None:
+                self._bias_position_jacobian_s2.fill(0.0)
+                self._bias_velocity_jacobian_s.fill(0.0)
+            else:
+                self._bias_position_jacobian_s2 += (
+                    self._bias_velocity_jacobian_s * dt
+                    - 0.5 * self._last_bias_rotation * dt * dt
+                )
+                self._bias_velocity_jacobian_s += -self._last_bias_rotation * dt
+        self._last_bias_rotation = rotation.copy()
+        self._last_bias_measurement_time_s = measurement_time_s
+        frozen = self._bias_position_jacobian_s2.copy()
+        frozen.setflags(write=False)
+        return frozen
+
+    def _fit_velocity_and_bias(
+        self,
+    ) -> _ConsensusBiasFitAudit:
+        policy = self.config.acceleration_bias
+        blank = np.empty(0, dtype=float)
+
+        def reject(
+            status: str,
+            *,
+            rank: int = 0,
+            condition: float = math.inf,
+            singular_values: np.ndarray = blank,
+            inlier_epochs: int = 0,
+            robust_standardized_rms: float | None = None,
+        ) -> _ConsensusBiasFitAudit:
+            return _ConsensusBiasFitAudit(
+                False, status, np.zeros(3), np.zeros(3), rank, condition,
+                singular_values, inlier_epochs, robust_standardized_rms,
+            )
+
+        if policy is None:
+            return reject("NOT_CONFIGURED")
+        rows = [item for item in self._history if item.position_bias_jacobian_s2 is not None]
+        if len(rows) < policy.minimum_distinct_epochs:
+            return reject("INSUFFICIENT_DISTINCT_EPOCHS")
+        if len(rows) > policy.maximum_bias_window_epochs:
+            return reject("BIAS_WINDOW_EPOCH_CAP_EXCEEDED")
+        times = np.asarray([item.epoch_s for item in rows], dtype=float)
+        if np.unique(times).size < policy.minimum_distinct_epochs:
+            return reject("INSUFFICIENT_DISTINCT_EPOCHS")
+        span = float(times[-1] - times[0])
+        if not math.isfinite(span) or span <= 0.0:
+            return reject("INVALID_BIAS_WINDOW_SPAN")
+        reference = rows[0]
+        blocks = []
+        observed = []
+        whiteners = []
+        for item in rows:
+            dt = float(item.epoch_s - reference.epoch_s)
+            blocks.append(np.c_[
+                np.eye(3),
+                np.eye(3) * dt,
+                item.position_bias_jacobian_s2
+                - reference.position_bias_jacobian_s2,
+            ])
+            observed.append(item.corrected_innovation_m)
+            covariance = _regularize(item.covariance_m2, self.config.covariance_floor)
+            try:
+                whiteners.append(np.linalg.inv(np.linalg.cholesky(covariance)))
+            except np.linalg.LinAlgError:
+                return reject("BIAS_COVARIANCE_NOT_FACTORIZABLE")
+        design = np.concatenate(blocks, axis=0)
+        values = np.concatenate(observed)
+        whitening = np.zeros_like(design)
+        whitened_values = np.zeros_like(values)
+        for index, whitener in enumerate(whiteners):
+            target = slice(3 * index, 3 * index + 3)
+            whitening[target] = whitener @ design[target]
+            whitened_values[target] = whitener @ values[target]
+        candidate_subsets = list(combinations(range(len(rows)), 3))
+        if not candidate_subsets or len(candidate_subsets) > policy.maximum_candidate_subsets:
+            return reject("BIAS_CANDIDATE_SUBSET_CAP_EXCEEDED")
+
+        def epoch_row_indices(indices: tuple[int, ...] | list[int]) -> np.ndarray:
+            return np.concatenate([
+                np.arange(3 * index, 3 * index + 3, dtype=int) for index in indices
+            ])
+
+        def scaled_audit(
+            selected_design: np.ndarray,
+            selected_times: np.ndarray,
+        ) -> tuple[int, float, np.ndarray]:
+            selected_span = float(selected_times[-1] - selected_times[0])
+            if selected_span <= 0.0:
+                return 0, math.inf, np.empty(0)
+            dimensional_scale = np.diag(np.r_[
+                np.ones(3),
+                np.full(3, 1.0 / selected_span),
+                np.full(3, 1.0 / (selected_span * selected_span)),
+            ])
+            singular_values = np.linalg.svd(
+                selected_design @ dimensional_scale, compute_uv=False,
+            )
+            tolerance = singular_values[0] * self.config.rank_relative_tolerance
+            selected_rank = int(np.sum(singular_values > tolerance))
+            selected_condition = (
+                math.inf if selected_rank == 0
+                else float(singular_values[0] / singular_values[selected_rank - 1])
+            )
+            return selected_rank, selected_condition, singular_values
+
+        candidates = []
+        for subset in candidate_subsets:
+            selected = epoch_row_indices(subset)
+            candidate_design = whitening[selected]
+            rank, condition, _ = scaled_audit(candidate_design, times[list(subset)])
+            if rank < 9 or condition > policy.maximum_scaled_condition:
+                continue
+            try:
+                solution = np.linalg.lstsq(
+                    candidate_design, whitened_values[selected], rcond=None,
+                )[0]
+            except np.linalg.LinAlgError:
+                continue
+            residual = (whitening @ solution - whitened_values).reshape(-1, 3)
+            norms = np.linalg.norm(residual, axis=1)
+            inliers = tuple(np.flatnonzero(
+                norms <= policy.temporal_huber_threshold_sigma,
+            ).tolist())
+            robust_score = float(np.sum(np.minimum(
+                norms * norms, policy.temporal_huber_threshold_sigma ** 2,
+            )))
+            candidates.append((-len(inliers), robust_score, subset, inliers))
+        if not candidates:
+            return reject("NO_FULL_RANK_BIAS_CANDIDATE")
+        _, _, _, inliers = min(candidates, key=lambda item: item[:3])
+        if len(inliers) < policy.minimum_inlier_epochs:
+            return reject("INSUFFICIENT_BIAS_INLIER_SUPPORT", inlier_epochs=len(inliers))
+        selected = epoch_row_indices(list(inliers))
+        selected_design = whitening[selected]
+        rank, condition, singular = scaled_audit(
+            selected_design, times[list(inliers)],
+        )
+        if rank < 9 or condition > policy.maximum_scaled_condition:
+            return reject(
+                "BIAS_REFIT_RANK_OR_CONDITION_REJECTED", rank=rank,
+                condition=condition, singular_values=singular,
+                inlier_epochs=len(inliers),
+            )
+        try:
+            solution = np.linalg.lstsq(
+                selected_design, whitened_values[selected], rcond=None,
+            )[0]
+        except np.linalg.LinAlgError:
+            return reject(
+                "BIAS_REFIT_NUMERICAL_REJECT", rank=rank,
+                condition=condition, singular_values=singular,
+                inlier_epochs=len(inliers),
+            )
+        residual = (
+            selected_design @ solution - whitened_values[selected]
+        ).reshape(-1, 3)
+        epoch_weights = np.minimum(
+            1.0,
+            policy.temporal_huber_threshold_sigma
+            / np.maximum(np.linalg.norm(residual, axis=1), 1e-15),
+        )
+        robust_rms = float(np.sqrt(
+            np.sum(epoch_weights * np.sum(residual * residual, axis=1))
+            / (3.0 * np.sum(epoch_weights))
+        ))
+        if not math.isfinite(robust_rms) or robust_rms > policy.maximum_robust_standardized_rms:
+            return reject(
+                "BIAS_REFIT_RESIDUAL_REJECTED", rank=rank,
+                condition=condition, singular_values=singular,
+                inlier_epochs=len(inliers), robust_standardized_rms=robust_rms,
+            )
+        return _ConsensusBiasFitAudit(
+            True, "BIAS_FIT_ACCEPTED", solution[3:6], solution[6:9],
+            rank, condition, singular, len(inliers), robust_rms,
+        )
+
+    def observe(
+        self,
+        state: RootState,
+        *,
+        observation: PositionObservation,
+        post_absolute_position_at_measurement_m: np.ndarray,
+        cumulative_absolute_position_correction_m: np.ndarray,
+        trusted_node_count: int,
+        total_body_nodes: int,
+        rotation_observation: ConsensusRotationObservation | None = None,
+        stream_identity: str | None = None,
+        allow_late_processing: bool = False,
+    ) -> tuple[RootState, DriftCorrectionDecision]:
+        processing_epoch = float(state.time_s)
+        try:
+            observation.validate()
+        except (ValueError, np.linalg.LinAlgError):
+            return state, FixedLagRangeDriftCorrector._empty(
+                "INVALID_POSITION_OBSERVATION", processing_epoch,
+            )
+        measurement_time_s = float(observation.measurement_time_s)
+        availability_time_s = float(observation.availability_time_s)
+        if not observation.frame_valid or not observation.physical_point_valid:
+            return state, FixedLagRangeDriftCorrector._empty(
+                "POSITION_OBSERVATION_REJECTED", processing_epoch,
+            )
+        if (
+            isinstance(observation.source_sequence, bool)
+            or not isinstance(observation.source_sequence, (int, np.integer))
+            or observation.source_sequence < 0
+        ):
+            return state, FixedLagRangeDriftCorrector._empty(
+                "INVALID_SOURCE_SEQUENCE", processing_epoch,
+            )
+        if stream_identity is not None and (
+            not isinstance(stream_identity, str) or not stream_identity
+        ):
+            raise ValueError("invalid consensus stream identity")
+        if type(allow_late_processing) is not bool:
+            raise TypeError("late-processing mode must be bool")
+        source_identity = (
+            (str(observation.tag_id), tuple(observation.anchors))
+            if stream_identity is None else (stream_identity, ())
+        )
+        if self._source_identity is not None and source_identity != self._source_identity:
+            return state, FixedLagRangeDriftCorrector._empty(
+                "SOURCE_IDENTITY_MISMATCH", processing_epoch,
+            )
+        if (
+            self._last_measurement_time_s is not None
+            and measurement_time_s <= self._last_measurement_time_s
+        ):
+            return state, FixedLagRangeDriftCorrector._empty(
+                "STALE_OR_REPLAYED_MEASUREMENT", processing_epoch,
+            )
+        if (
+            self._last_availability_time_s is not None
+            and availability_time_s <= self._last_availability_time_s
+        ):
+            return state, FixedLagRangeDriftCorrector._empty(
+                "STALE_OR_REPLAYED_AVAILABILITY", processing_epoch,
+            )
+        if (
+            self._last_source_sequence is not None
+            and int(observation.source_sequence) <= self._last_source_sequence
+        ):
+            return state, FixedLagRangeDriftCorrector._empty(
+                "STALE_OR_REPLAYED_SOURCE_SEQUENCE", processing_epoch,
+            )
+        if (
+            processing_epoch < availability_time_s - 1e-12
+            or (
+                not allow_late_processing
+                and abs(availability_time_s - processing_epoch) > 1e-12
+            )
+        ):
+            return state, FixedLagRangeDriftCorrector._empty(
+                "STATE_NOT_AT_OBSERVATION_AVAILABILITY", processing_epoch,
+            )
+        if measurement_time_s > availability_time_s + 1e-12:
+            return state, FixedLagRangeDriftCorrector._empty(
+                "OBSERVATION_NOT_AVAILABLE", processing_epoch,
+            )
+
+        rotation: np.ndarray | None = None
+        if self.config.acceleration_bias is not None:
+            if rotation_observation is None:
+                return state, FixedLagRangeDriftCorrector._empty(
+                    "MISSING_BIAS_ROTATION_OBSERVATION", processing_epoch,
+                )
+            try:
+                rotation_observation.validate()
+            except (ValueError, np.linalg.LinAlgError):
+                return state, FixedLagRangeDriftCorrector._empty(
+                    "INVALID_BIAS_ROTATION_OBSERVATION", processing_epoch,
+                )
+            if (
+                rotation_observation.association_measurement_time_s
+                != measurement_time_s
+                or rotation_observation.availability_time_s > availability_time_s
+                or rotation_observation.association_sequence
+                != int(observation.source_sequence)
+                or rotation_observation.tag_id != observation.tag_id
+                or rotation_observation.anchors != tuple(observation.anchors)
+                or rotation_observation.rotation_owner
+                != self.config.acceleration_bias.rotation_owner
+                or rotation_observation.action_id
+                != self.config.acceleration_bias.rotation_action_id
+            ):
+                return state, FixedLagRangeDriftCorrector._empty(
+                    "BIAS_ROTATION_ASSOCIATION_MISMATCH", processing_epoch,
+                )
+            if (
+                self._last_rotation_source_measurement_time_s is not None
+                and rotation_observation.source_measurement_time_s
+                <= self._last_rotation_source_measurement_time_s
+            ) or (
+                self._last_rotation_availability_time_s is not None
+                and rotation_observation.availability_time_s
+                <= self._last_rotation_availability_time_s
+            ) or (
+                self._last_rotation_association_sequence is not None
+                and rotation_observation.association_sequence
+                <= self._last_rotation_association_sequence
+            ) or (
+                self._last_rotation_source_span is not None
+                and (
+                    rotation_observation.source_span,
+                    rotation_observation.source_frame,
+                )
+                <= (
+                    self._last_rotation_source_span,
+                    self._last_rotation_source_frame,
+                )
+            ):
+                return state, FixedLagRangeDriftCorrector._empty(
+                    "STALE_OR_REPLAYED_BIAS_ROTATION", processing_epoch,
+                )
+            rotation = rotation_observation.rotation_world_from_sensor
+
+        position = np.asarray(observation.root_position_m, dtype=float).reshape(3)
+        post_absolute_at_measurement = np.asarray(
+            post_absolute_position_at_measurement_m, dtype=float,
+        ).reshape(3)
+        covariance = np.asarray(observation.covariance_m2, dtype=float).reshape(3, 3)
+        cumulative = np.asarray(
+            cumulative_absolute_position_correction_m, dtype=float,
+        ).reshape(3)
+        if (
+            not np.isfinite(position).all()
+            or not np.isfinite(post_absolute_at_measurement).all()
+            or not np.isfinite(covariance).all() or not np.isfinite(cumulative).all()
+            or not np.allclose(covariance, covariance.T, rtol=0.0, atol=1e-12)
+            or np.min(np.linalg.eigvalsh(covariance)) <= 0.0
+            or isinstance(trusted_node_count, bool) or trusted_node_count < 1
+            or isinstance(total_body_nodes, bool) or total_body_nodes != 10
+            or trusted_node_count > total_body_nodes
+        ):
+            raise ValueError("invalid body-consensus drift observation")
+        # The ledger includes the current absolute correction, so the paired
+        # state position must be the post-absolute value. This algebraically
+        # removes all absolute-gauge commits through the current epoch.
+        corrected = position - post_absolute_at_measurement + cumulative
+        while self._history and measurement_time_s - self._history[0].epoch_s > self.config.maximum_lag_s:
+            self._history.popleft()
+        candidates = [
+            previous for previous in self._history
+            if self.config.minimum_lag_s
+            <= measurement_time_s - previous.epoch_s
+            <= self.config.maximum_lag_s
+        ]
+        if candidates:
+            previous = min(
+                candidates,
+                key=lambda item: abs(
+                    (measurement_time_s - item.epoch_s) - self.config.maximum_lag_s
+                ),
+            )
+            lag = measurement_time_s - previous.epoch_s
+            difference = corrected - previous.corrected_innovation_m
+            variance = np.diag(covariance + previous.covariance_m2)
+            self._pending_design.append(np.eye(3) * lag)
+            self._pending_observed.append(difference)
+            self._pending_inverse_variance.append(1.0 / variance)
+        bias_jacobian = self._advance_bias_sensitivity(
+            measurement_time_s, rotation,
+        )
+        frozen_corrected = corrected.copy(); frozen_corrected.setflags(write=False)
+        frozen_covariance = covariance.copy(); frozen_covariance.setflags(write=False)
+        self._history.append(_ConsensusObservation(
+            measurement_time_s, availability_time_s, int(observation.source_sequence),
+            source_identity, frozen_corrected, frozen_covariance, bias_jacobian,
+        ))
+        self._last_measurement_time_s = measurement_time_s
+        self._last_availability_time_s = availability_time_s
+        self._last_source_sequence = int(observation.source_sequence)
+        self._source_identity = source_identity
+        if rotation_observation is not None:
+            self._last_rotation_availability_time_s = (
+                rotation_observation.availability_time_s
+            )
+            self._last_rotation_association_sequence = (
+                rotation_observation.association_sequence
+            )
+            self._last_rotation_source_measurement_time_s = (
+                rotation_observation.source_measurement_time_s
+            )
+            self._last_rotation_source_frame = rotation_observation.source_frame
+            self._last_rotation_source_span = rotation_observation.source_span
+
+        if self._last_update_s is None:
+            self._last_update_s = measurement_time_s
+            return state, FixedLagRangeDriftCorrector._empty(
+                "FIXED_LAG_WARMUP", measurement_time_s,
+            )
+        if measurement_time_s - self._last_update_s < self.config.update_period_s:
+            return state, FixedLagRangeDriftCorrector._empty(
+                "UPDATE_PERIOD_NOT_REACHED", measurement_time_s,
+            )
+        pair_count = len(self._pending_design)
+        row_count = 3 * pair_count
+        if pair_count < self.config.minimum_consensus_pairs:
+            return state, FixedLagRangeDriftCorrector._empty(
+                "INSUFFICIENT_FIXED_LAG_ROWS", measurement_time_s,
+            )
+        design = np.concatenate(self._pending_design, axis=0)
+        observed = np.concatenate(self._pending_observed)
+        inverse_variance = np.concatenate(self._pending_inverse_variance)
+        whitened = np.sqrt(inverse_variance)[:, None] * design
+        singular = np.linalg.svd(whitened, compute_uv=False)
+        tolerance = singular[0] * self.config.rank_relative_tolerance
+        rank = int(np.sum(singular > tolerance))
+        condition = math.inf if rank == 0 else float(singular[0] / singular[rank - 1])
+        if rank < 3:
+            return state, DriftCorrectionDecision(
+                False, "VELOCITY_DRIFT_UNOBSERVABLE", measurement_time_s, row_count,
+                rank, condition, singular, np.zeros(3), np.zeros(3),
+                np.full(row_count, "BODY_CONSENSUS", dtype="U14"),
+                np.full(row_count, -1, dtype=int),
+                np.repeat(np.asarray([item[0, 0] for item in self._pending_design]), 3),
+                observed, inverse_variance,
+            )
+        prior = _regularize(
+            state.covariance[3:6, 3:6], self.config.covariance_floor,
+        )
+        information = np.linalg.inv(prior) + design.T @ (
+            inverse_variance[:, None] * design
+        )
+        rhs = design.T @ (inverse_variance * observed)
+        raw = np.linalg.solve(information, rhs)
+        bias_fit = self._fit_velocity_and_bias()
+        if not bias_fit.accepted:
+            velocity_delta = FixedLagRangeDriftCorrector._limit(
+                raw, self.config.maximum_velocity_step_mps,
+            )
+            bias_delta = np.zeros(3)
+            reason = "ACCEPTED_CONSENSUS_VELOCITY_ONLY"
+            decision_rank = rank
+            decision_condition = condition
+            decision_singular = singular
+        else:
+            velocity_delta = FixedLagRangeDriftCorrector._limit(
+                bias_fit.velocity_delta_mps, self.config.maximum_velocity_step_mps,
+            )
+            bias_delta = FixedLagRangeDriftCorrector._limit(
+                bias_fit.accelerometer_bias_delta_mps2,
+                self.config.acceleration_bias.maximum_accelerometer_bias_step_mps2,
+            )
+            reason = "ACCEPTED_CONSENSUS_VELOCITY_AND_ACCELEROMETER_BIAS"
+            decision_rank = bias_fit.rank
+            decision_condition = bias_fit.condition
+            decision_singular = bias_fit.singular_values
+        vector = state.vector.copy()
+        vector[3:6] += velocity_delta
+        vector[6:9] += bias_delta
+        # The finite-difference covariance owns the velocity estimate's
+        # weighting, but this adapter has no independently qualified process
+        # cross-covariance with the live delayed filter.  Keep the live
+        # covariance byte-exact and commit only the bounded velocity mean via
+        # that filter's authoritative current-constraint journal.
+        updated = RootState(state.time_s, vector, state.covariance.copy())
+        result = DriftCorrectionDecision(
+            True, reason, measurement_time_s, row_count,
+            decision_rank, decision_condition, decision_singular, velocity_delta, bias_delta,
+            np.full(row_count, "BODY_CONSENSUS", dtype="U14"),
+            np.full(row_count, -1, dtype=int),
+            np.repeat(np.asarray([item[0, 0] for item in self._pending_design]), 3),
+            observed, inverse_variance,
+            bias_fit.status, bias_fit.inlier_epochs,
+            bias_fit.robust_standardized_rms, bias_fit.rank,
+            bias_fit.condition,
+        )
+        self._history.clear()
+        self._pending_design.clear()
+        self._pending_observed.clear()
+        self._pending_inverse_variance.clear()
+        self._last_update_s = measurement_time_s
+        self._bias_position_jacobian_s2.fill(0.0)
+        self._bias_velocity_jacobian_s.fill(0.0)
+        self._last_bias_rotation = None
+        self._last_bias_measurement_time_s = None
         return updated, result
 
 

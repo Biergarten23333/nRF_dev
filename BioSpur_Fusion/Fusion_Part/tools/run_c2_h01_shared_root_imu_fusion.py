@@ -58,6 +58,11 @@ from biospur_fusion.c2_uwb_calibration.articulated_range import (
 from biospur_fusion.c2_uwb_calibration.causal_articulated_pose import (
     CausalArticulatedPose,
 )
+from biospur_fusion.c2_uwb_calibration.body_occlusion import (
+    OnlineLinkReliability,
+    annotate_links_from_prior,
+    observe_postfit_links,
+)
 from biospur_fusion.c2_uwb_calibration.pair_bias import (
     PairBiasEstimate,
     load_pair_bias_table,
@@ -70,6 +75,12 @@ from biospur_fusion.c2_uwb_root_world.run_calibration import (
     _beacon_boundary_bridges,
     _clock_models,
 )
+from biospur_fusion.c2_uwb_root_world.root_correction_slew import (
+    CausalRootCorrectionSlew,
+)
+from biospur_fusion.c2_uwb_root_world.articulated_correction_slew import (
+    CausalArticulatedCorrectionSlew,
+)
 from biospur_fusion.c2_uwb_root_world.calibration import CALIBRATION_ORDER
 from biospur_fusion.c2_uwb_root_world.ankle_contact import (
     AnkleContactConfig,
@@ -78,6 +89,7 @@ from biospur_fusion.c2_uwb_root_world.ankle_contact import (
     FootContactEvidence,
     FootSupportState,
     fit_stillness_profiles,
+    positive_swing_cues,
 )
 from biospur_fusion.ingest.events import RecordType
 from biospur_fusion.ingest.v47 import decode_measurements
@@ -101,6 +113,11 @@ from evaluate_c2_pair_bias_gate import (
     _valid_slots,
 )
 from run_c2_h01_tight_raw_range_fusion import PELVIS_NODE, _pelvis_imu
+from c2_native200_contact_support import (
+    ANKLE_NODE_TO_SIDE,
+    ankle_imu_rows as _ankle_imu_rows,
+    ankle_proxy_interpolator as _ankle_proxy_interpolator,
+)
 from tools.build_c2_avatar_interactive import _load_trajectory
 
 
@@ -116,7 +133,6 @@ STATIC_CALIBRATION_ACTIONS = {
     "02_t_pose",
     "17_final_still",
 }
-ANKLE_NODE_TO_SIDE = {"BSF6C53": "left", "BSF8BC4": "right"}
 H02_CONTACT_REFERENCE_NPZ = (
     ROOT / "logs/c2_h02_ankle_contact_root_pilot_v5_20260904/"
     "H02_golf_SHARED_ROOT_IMU_FUSION.npz"
@@ -506,6 +522,7 @@ def _shared_root_observations(
         [dict[str, np.ndarray], dict[str, np.ndarray]],
         tuple[dict[str, np.ndarray], dict[str, Any]],
     ] | None = None,
+    body_occlusion: bool = False,
 ) -> list[dict[str, Any]]:
     room_initial = np.array([
         float(np.mean(anchors[:, 0])),
@@ -517,6 +534,7 @@ def _shared_root_observations(
     previous_correction = {
         segment: np.zeros(3) for segment in ARTICULATED_SEGMENTS
     }
+    link_reliability = OnlineLinkReliability()
     for sequence, group in enumerate(episode["groups"]):
         epoch_ns = int(np.median([
             int(round(clocks[row.node].a_ns_per_us * row.strobe_us + clocks[row.node].b_ns))
@@ -551,6 +569,28 @@ def _shared_root_observations(
             policy=policy,
             biases=biases,
         )
+        link_reliability_decisions = ()
+        if body_occlusion:
+            if current_base_rotations is None or geometry is None:
+                raise ValueError(
+                    "body occlusion requires current FK rotations and geometry"
+                )
+            body_points = corrected_proxy_points(
+                current_base_rotations, current_carry, geometry
+            )
+            links, link_reliability_decisions = annotate_links_from_prior(
+                links,
+                anchors_m=anchors,
+                predicted_root_m=predicted,
+                root_velocity_mps=tracker["velocity"],
+                body_points_relative_world_m=body_points,
+                geometry=geometry,
+                reliability=link_reliability,
+            )
+        reliability_by_identity = {
+            (row.node, row.anchor): row
+            for row in link_reliability_decisions
+        }
         raw_link_count = len(links)
         links = _select_geometry_links(links, link_selection)
         available_nodes = tuple(sorted({link.node for link in links}))
@@ -598,6 +638,17 @@ def _shared_root_observations(
         )
         if not result.success:
             continue
+        selected_reliability = tuple(
+            reliability_by_identity[(link.node, link.anchor)]
+            for link in links
+        ) if body_occlusion else ()
+        if body_occlusion:
+            observe_postfit_links(
+                links,
+                selected_reliability,
+                result.residuals_m,
+                reliability=link_reliability,
+            )
         uncertainty = estimate_leave_node_uncertainty(
             links,
             anchors_m=anchors,
@@ -715,6 +766,17 @@ def _shared_root_observations(
             ]),
             "root_pose_gauge_owner": root_pose_gauge_owner,
             "facing_nlos_weight": facing_nlos_weight.copy(),
+            "link_information_weight": np.asarray([
+                link.information_weight for link in links
+            ], dtype=float),
+            "body_occlusion_score": np.asarray([
+                link.body_occlusion_score for link in links
+            ], dtype=float),
+            "body_occluder": tuple(link.body_occluder for link in links),
+            "link_reliability_reason": tuple(
+                reliability_by_identity[(link.node, link.anchor)].reason
+                for link in links
+            ) if body_occlusion else tuple("DISABLED" for _link in links),
             "articulated_attempted": articulated_attempted,
             "articulated_accepted": articulated_accepted,
             "articulated_prefit_median_abs_m": articulated_prefit_median_abs_m,
@@ -1199,33 +1261,6 @@ def _new_filter(
     return CausalDelayedRootFilter(state, config, inertial=True)
 
 
-def _ankle_imu_rows(
-    events: list[Any],
-    clocks: dict[str, Any],
-    lo_ns: int,
-    hi_ns: int,
-) -> list[dict[str, Any]]:
-    rows = []
-    for event in events:
-        side = ANKLE_NODE_TO_SIDE.get(event.node_id)
-        if side is None or event.record_type is not RecordType.IMU:
-            continue
-        time_s = clocks[event.node_id].seconds(int(event.node_timer_us))
-        if lo_ns * 1e-9 <= time_s < hi_ns * 1e-9:
-            rows.append({
-                "side": side,
-                "time_s": time_s,
-                "acceleration": np.asarray(event.payload["acc_raw"], float)
-                / 2048.0 * 9.80665,
-                "gyro": np.deg2rad(
-                    np.asarray(event.payload["gyro_raw"], float) / 16.384
-                ),
-                "sequence": int(event.sequence),
-            })
-    rows.sort(key=lambda row: (row["time_s"], row["side"]))
-    return rows
-
-
 def _fit_contact_profiles(
     clocks: dict[str, Any],
     bridges: list[tuple[float, float]],
@@ -1249,65 +1284,6 @@ def _fit_contact_profiles(
                 np.stack([row["gyro"] for row in selected]),
             ))
     return fit_stillness_profiles(samples, config)
-
-
-def _ankle_proxy_interpolator(
-    proxy_at_fraction: Callable[
-        [float], tuple[dict[str, np.ndarray], dict[str, np.ndarray], int]
-    ],
-    action_start_s: float,
-    action_stop_s: float,
-    *,
-    pose_time_grid_s: np.ndarray | None = None,
-) -> Callable[[float], tuple[dict[str, np.ndarray], dict[str, np.ndarray]]]:
-    duration = action_stop_s - action_start_s
-    if pose_time_grid_s is None:
-        count = max(2, int(np.ceil(duration * 10.0)) + 1)
-        fractions = np.linspace(0.0, 1.0, count)
-    else:
-        pose_time = np.asarray(pose_time_grid_s, dtype=float)
-        if (
-            pose_time.ndim != 1
-            or len(pose_time) < 2
-            or not np.all(np.diff(pose_time) > 0.0)
-        ):
-            raise ValueError("pose time grid must be strictly increasing")
-        fractions = (pose_time - pose_time[0]) / (pose_time[-1] - pose_time[0])
-    times = action_start_s + duration * fractions
-    offsets = {"left": [], "right": []}
-    for fraction in fractions:
-        body_offsets, _, _ = proxy_at_fraction(float(fraction))
-        offsets["left"].append(np.asarray(body_offsets["BSF6C53"], float))
-        offsets["right"].append(np.asarray(body_offsets["BSF8BC4"], float))
-    offset_arrays = {
-        side: np.stack(values) for side, values in offsets.items()
-    }
-    velocity_arrays = {
-        side: np.gradient(values, times, axis=0, edge_order=1)
-        for side, values in offset_arrays.items()
-    }
-
-    def interpolate(
-        time_s: float,
-    ) -> tuple[dict[str, np.ndarray], dict[str, np.ndarray]]:
-        query = float(np.clip(time_s, times[0], times[-1]))
-        position = {
-            side: np.asarray([
-                np.interp(query, times, offset_arrays[side][:, axis])
-                for axis in range(3)
-            ])
-            for side in ("left", "right")
-        }
-        velocity = {
-            side: np.asarray([
-                np.interp(query, times, velocity_arrays[side][:, axis])
-                for axis in range(3)
-            ])
-            for side in ("left", "right")
-        }
-        return position, velocity
-
-    return interpolate
 
 
 def _maximum_active_episode_drift(
@@ -1723,137 +1699,6 @@ def _contact_reconcile_step_audit(
     }
 
 
-def _causal_root_at_ankle_sample(
-    state: RootState,
-    query_time_s: float,
-    *,
-    maximum_age_s: float,
-) -> tuple[np.ndarray | None, float]:
-    """Propagate the last causal root state to an ankle sample without mutation."""
-
-    age_s = float(query_time_s - state.time_s)
-    if (
-        not math.isfinite(age_s)
-        or age_s < -1e-12
-        or age_s > maximum_age_s + 1e-12
-    ):
-        return None, age_s
-    return state.position_m + age_s * state.velocity_mps, age_s
-
-
-def _positive_swing_cue(
-    *,
-    side: str,
-    query_time_s: float,
-    analytic_ankle_offset_world_m: Mapping[str, np.ndarray],
-    root_state: RootState,
-    foothold_corrector: DualFootFootholdCorrector,
-    evidence: Mapping[str, FootContactEvidence],
-    maximum_root_age_s: float,
-    positive_swing_height_m: float,
-) -> dict[str, Any]:
-    """Return the causal, explicitly owned height cue for confirmed swing."""
-
-    footholds = foothold_corrector.footholds_world_m()
-    if side in footholds:
-        root, age_s = _causal_root_at_ankle_sample(
-            root_state, query_time_s, maximum_age_s=maximum_root_age_s
-        )
-        if root is None:
-            return {
-                "observable": False,
-                "positive": False,
-                "height_m": math.nan,
-                "owner": "OWNED_FOOTHOLD_ROOT_TIME_UNOBSERVABLE",
-                "root_owner_age_s": age_s,
-            }
-        height_m = float(
-            root[2]
-            + analytic_ankle_offset_world_m[side][2]
-            - footholds[side][2]
-        )
-        return {
-            "observable": True,
-            "positive": height_m >= positive_swing_height_m,
-            "height_m": height_m,
-            "owner": "OWNED_FOOTHOLD_WORLD_Z",
-            "root_owner_age_s": age_s,
-        }
-
-    other = "right" if side == "left" else "left"
-    if evidence[other].is_confirmed_stance:
-        height_m = float(
-            analytic_ankle_offset_world_m[side][2]
-            - analytic_ankle_offset_world_m[other][2]
-        )
-        return {
-            "observable": True,
-            "positive": height_m >= positive_swing_height_m,
-            "height_m": height_m,
-            "owner": "OPPOSITE_CONFIRMED_STANCE_RELATIVE_HEIGHT",
-            "root_owner_age_s": math.nan,
-        }
-    return {
-        "observable": False,
-        "positive": False,
-        "height_m": math.nan,
-        "owner": "UNOBSERVABLE",
-        "root_owner_age_s": math.nan,
-    }
-
-
-def _positive_swing_cues(
-    *,
-    query_time_s: float,
-    analytic_ankle_offset_world_m: Mapping[str, np.ndarray],
-    root_state: RootState,
-    foothold_corrector: DualFootFootholdCorrector,
-    evidence: Mapping[str, FootContactEvidence],
-    maximum_root_age_s: float,
-    positive_swing_height_m: float,
-) -> dict[str, dict[str, Any]]:
-    """Compute raw bilateral lift evidence without applying an activity prior."""
-
-    cues = {
-        side: _positive_swing_cue(
-            side=side,
-            query_time_s=query_time_s,
-            analytic_ankle_offset_world_m=analytic_ankle_offset_world_m,
-            root_state=root_state,
-            foothold_corrector=foothold_corrector,
-            evidence=evidence,
-            maximum_root_age_s=maximum_root_age_s,
-            positive_swing_height_m=positive_swing_height_m,
-        )
-        for side in ("left", "right")
-    }
-    positive_sides = tuple(
-        side for side in ("left", "right") if cues[side]["positive"]
-    )
-    classification = {
-        (): "NONE",
-        ("left",): "UNILATERAL_LEFT",
-        ("right",): "UNILATERAL_RIGHT",
-        ("left", "right"): "BILATERAL",
-    }[positive_sides]
-    observed_lift_m = {
-        side: (
-            float(cues[side]["height_m"])
-            if math.isfinite(cues[side]["height_m"]) else None
-        )
-        for side in ("left", "right")
-    }
-    return {
-        side: {
-            **cue,
-            "positive_lift_classification": classification,
-            "positive_lift_sides": positive_sides,
-            "observed_lift_m": observed_lift_m,
-        }
-        for side, cue in cues.items()
-    }
-
-
 def _confirmed_measurement_footholds(
     footholds_world_m: Mapping[str, np.ndarray],
     evidence: Mapping[str, FootContactEvidence],
@@ -1867,9 +1712,50 @@ def _confirmed_measurement_footholds(
     }
 
 
+def _articulated_pose_install_decision(
+    *,
+    pose_owner_enabled: bool,
+    root_update_accepted: bool,
+    articulated_update_accepted: bool,
+    measurement_primary_side: str | None,
+    availability_primary_side: str | None,
+    measurement_ik_has_foothold_constraint: bool,
+    availability_has_root_support_owner: bool,
+    measurement_gauge_shift_xy_m: float | None,
+    maximum_gauge_shift_xy_m: float,
+) -> tuple[bool, str]:
+    """Reject delayed joint IK after its primary support owner changed."""
+
+    if not pose_owner_enabled:
+        return False, "POSE_OWNER_DISABLED"
+    if not root_update_accepted:
+        return False, "ROOT_UPDATE_REJECTED"
+    if not articulated_update_accepted:
+        return False, "ARTICULATED_UPDATE_REJECTED"
+    if (
+        measurement_ik_has_foothold_constraint
+        != availability_has_root_support_owner
+    ):
+        return False, "SUPPORT_OBSERVABILITY_CHANGED_BEFORE_AVAILABILITY"
+    if (
+        measurement_primary_side is not None
+        and availability_primary_side is not None
+        and measurement_primary_side != availability_primary_side
+    ):
+        return False, "SUPPORT_OWNER_CHANGED_BEFORE_AVAILABILITY"
+    if (
+        measurement_gauge_shift_xy_m is not None
+        and measurement_gauge_shift_xy_m
+        > maximum_gauge_shift_xy_m + 1e-12
+    ):
+        return False, "MEASUREMENT_POSE_GAUGE_SHIFT_EXCEEDED"
+    return True, "ACCEPTED"
+
+
 def _prior_held_uwb_gate(
     relative_time_s: np.ndarray,
     prior_held: np.ndarray,
+    confirmed: np.ndarray,
     decisions: Sequence[Mapping[str, Any]],
     *,
     bootstrap_time_s: float,
@@ -1880,15 +1766,27 @@ def _prior_held_uwb_gate(
 
     time_s = np.asarray(relative_time_s, dtype=float)
     mask = np.asarray(prior_held, dtype=bool)
+    confirmed_mask = np.asarray(confirmed, dtype=bool)
     if mask.shape != (len(time_s), 2):
         raise ValueError("prior-held mask must be Nx2")
+    if confirmed_mask.shape != (len(time_s), 2):
+        raise ValueError("confirmed mask must be Nx2")
     accepted_time_s = np.asarray([
         float(row["availability_time_s"]) - bootstrap_time_s
         for row in decisions if bool(row["accepted"])
     ])
     episodes = []
     for side_index, side in enumerate(("left", "right")):
-        padded = np.r_[False, mask[:, side_index], False]
+        # A prior-held foot does not make UWB the root owner while the other
+        # foot is still a confirmed world foothold.  Requiring an accepted UWB
+        # update in that case contradicts the contact-manifold gate: a
+        # physically conflicting observation must remain rejected.  UWB
+        # availability is required only where prior-held support is the last
+        # remaining support source.
+        needs_uwb_support = mask[:, side_index] & ~np.any(
+            confirmed_mask, axis=1
+        )
+        padded = np.r_[False, needs_uwb_support, False]
         starts = np.flatnonzero(~padded[:-1] & padded[1:])
         stops = np.flatnonzero(padded[:-1] & ~padded[1:])
         for start, stop in zip(starts, stops):
@@ -1940,6 +1838,8 @@ def run(
     analytic_calibration_report_path: Path | None = None,
     pre_ik_hxx_report_path: Path | None = None,
     maximum_duration_s: float | None = None,
+    body_occlusion: bool = False,
+    root_correction_release_s: float | None = None,
 ) -> dict[str, Any]:
     started = time.perf_counter()
     if action not in SUPPORTED_ACTIONS:
@@ -1962,6 +1862,11 @@ def run(
         math.isfinite(maximum_duration_s) and maximum_duration_s >= 1.0
     ):
         raise ValueError("pilot maximum duration must be at least one second")
+    if root_correction_release_s is not None and not (
+        math.isfinite(root_correction_release_s)
+        and root_correction_release_s > 0.0
+    ):
+        raise ValueError("root correction release period must be positive")
     if stationary_no_flight_prior and action != "H02_golf":
         raise ValueError(
             "stationary no-flight prior is explicitly restricted to H02_golf"
@@ -2099,6 +2004,7 @@ def run(
         articulated_stride=articulated_stride,
         node_selection=node_selection,
         hinge_projector=hinge_projector,
+        body_occlusion=body_occlusion,
     )
     if len(observations) < 10:
         raise RuntimeError("insufficient accepted shared-root observations")
@@ -2152,12 +2058,21 @@ def run(
     )
     fused_filter = _new_filter(observations[0], bias, config)
     imu_filter = _new_filter(observations[0], bias, config)
+    root_correction_slew = (
+        None
+        if root_correction_release_s is None
+        else CausalRootCorrectionSlew(
+            release_period_s=root_correction_release_s,
+            maximum_correction_m=maximum_position_influence_m,
+        )
+    )
     bootstrap_time = observations[0]["availability_time_s"]
     processing_stop_s = (
         action_stop_s if maximum_duration_s is None
         else min(action_stop_s, bootstrap_time + maximum_duration_s)
     )
     causal_pose: CausalArticulatedPose | None = None
+    articulated_publication_slew: CausalArticulatedCorrectionSlew | None = None
     if (
         ankle_contact
         and effective_body_update == "articulated_consensus"
@@ -2182,16 +2097,29 @@ def run(
                 measurement_time_s=observations[0]["measurement_time_s"],
                 availability_time_s=bootstrap_time,
             )
+        articulated_publication_slew = CausalArticulatedCorrectionSlew(
+            segments=ARTICULATED_SEGMENTS,
+            release_period_s=causal_pose.transition_period_s,
+            maximum_target_norm_rad=(
+                ArticulatedRangeConfig().maximum_segment_correction_rad
+                * np.sqrt(3.0) + 1e-10
+            ),
+        )
 
     def ankle_pose_at(
         query_time_s: float,
+        *,
+        publish_hinge_temporal: bool = True,
     ) -> tuple[
         dict[str, np.ndarray],
         dict[str, np.ndarray],
         Any | None,
     ]:
         if causal_pose is not None:
-            sample = causal_pose.sample(query_time_s)
+            sample = causal_pose.sample(
+                query_time_s,
+                publish_hinge_temporal=publish_hinge_temporal,
+            )
             return (
                 dict(sample.ankle_offset_world_m),
                 dict(sample.ankle_offset_velocity_world_mps),
@@ -2222,6 +2150,11 @@ def run(
     output_time = []
     fused_position = []
     fused_velocity = []
+    filter_posterior_position = []
+    filter_posterior_velocity = []
+    root_correction_withheld = []
+    root_correction_release_velocity = []
+    root_correction_active_count = []
     fused_bias = []
     imu_position = []
     imu_velocity = []
@@ -2270,7 +2203,7 @@ def run(
                 latest_contact_evidence[side].resolved_support_state
             )
             lower_height = min(offsets[side][2] for side in ("left", "right"))
-            swing_cues = _positive_swing_cues(
+            swing_cues = positive_swing_cues(
                 query_time_s=availability_time,
                 analytic_ankle_offset_world_m=offsets,
                 root_state=fused_filter.current_state,
@@ -2409,6 +2342,12 @@ def run(
                             operator=reconcile.replay_operator,
                             owner="NATIVE200_POSE_REGAUGE",
                         )
+                        if root_correction_slew is not None:
+                            root_correction_slew.install(
+                                availability_time,
+                                reconcile.applied_position_delta_m,
+                                enforce_filter_influence_cap=False,
+                            )
                         sample_reconcile_delta = (
                             reconcile.applied_position_delta_m.copy()
                         )
@@ -2451,6 +2390,12 @@ def run(
                         operator=contact_decision.replay_operator,
                         owner="NATIVE200_FOOTHOLD_SOFT_UPDATE",
                     )
+                    if root_correction_slew is not None:
+                        root_correction_slew.install(
+                            availability_time,
+                            contact_decision.applied_position_delta_m,
+                            enforce_filter_influence_cap=False,
+                        )
                 root_after_soft_contact = (
                     fused_filter.current_state.position_m.copy()
                 )
@@ -2544,7 +2489,36 @@ def run(
                 constrained_sides = set()
             fused = fused_filter.emit(availability_time)
             inertial = imu_filter.emit(availability_time)
+            if root_correction_slew is None:
+                published_root_position = fused.root_position_m
+                published_root_velocity = fused.root_velocity_mps
+                withheld_root_correction = np.zeros(3)
+                root_release_velocity = np.zeros(3)
+                active_root_corrections = 0
+            else:
+                root_publication = root_correction_slew.sample(
+                    availability_time,
+                    fused.root_position_m,
+                    fused.root_velocity_mps,
+                )
+                published_root_position = root_publication.position_m
+                published_root_velocity = root_publication.velocity_mps
+                withheld_root_correction = (
+                    root_publication.withheld_correction_m
+                )
+                root_release_velocity = root_publication.release_velocity_mps
+                active_root_corrections = (
+                    root_publication.active_correction_count
+                )
             if pose_sample is not None:
+                if articulated_publication_slew is None:
+                    raise RuntimeError(
+                        "articulated pose publication owner is missing"
+                    )
+                pose_publication = articulated_publication_slew.sample(
+                    availability_time,
+                    pose_sample.correction_rotvec,
+                )
                 published_pose_history.append({
                     "time_s": float(availability_time),
                     "correction_rotvec": {
@@ -2557,8 +2531,13 @@ def run(
                     "primary_side": foothold_corrector.primary_side,
                 })
             output_time.append(availability_time)
-            fused_position.append(fused.root_position_m)
-            fused_velocity.append(fused.root_velocity_mps)
+            fused_position.append(published_root_position)
+            fused_velocity.append(published_root_velocity)
+            filter_posterior_position.append(fused.root_position_m)
+            filter_posterior_velocity.append(fused.root_velocity_mps)
+            root_correction_withheld.append(withheld_root_correction)
+            root_correction_release_velocity.append(root_release_velocity)
+            root_correction_active_count.append(active_root_corrections)
             fused_bias.append(fused_filter.current_state.accelerometer_bias_mps2.copy())
             imu_position.append(inertial.root_position_m)
             imu_velocity.append(inertial.root_velocity_mps)
@@ -2620,7 +2599,7 @@ def run(
             ])
             if pose_sample is not None:
                 articulated_correction_high_rate.append(np.stack([
-                    pose_sample.correction_rotvec[segment]
+                    pose_publication.correction_rotvec[segment]
                     for segment in ARTICULATED_SEGMENTS
                 ]))
                 articulated_projection_fk_residual_deg.append(float(
@@ -2635,10 +2614,10 @@ def run(
                     pose_sample.velocity_baseline_reset
                 ))
                 articulated_transition_step_rad.append(float(
-                    pose_sample.transition_step_maximum_rad
+                    pose_publication.step_maximum_rad
                 ))
                 articulated_transition_active.append(bool(
-                    pose_sample.transition_active
+                    pose_publication.active
                 ))
             else:
                 articulated_correction_high_rate.append(np.zeros(
@@ -2822,20 +2801,72 @@ def run(
                 quality_state=observation_quality_state,
             )
             fused_filter.advance_to_availability(availability_time)
+            if root_correction_slew is not None and decision.accepted:
+                root_correction_slew.install(
+                    availability_time,
+                    decision.availability_applied_position_delta_m,
+                )
             filter_root_after_uwb = (
                 fused_filter.current_state.position_m.copy()
             )
-            pose_install_accepted = bool(
-                causal_pose is not None
-                and decision.accepted
-                and payload["articulated_accepted"]
+            measurement_primary_side = None
+            measurement_gauge_shift_xy_m = None
+            if root_pose_gauge_diagnostic is not None:
+                contact_manifold = root_pose_gauge_diagnostic.get(
+                    "contact_manifold", {}
+                )
+                if contact_manifold.get("evaluated"):
+                    measurement_primary_side = contact_manifold.get(
+                        "primary_side"
+                    )
+                if root_pose_gauge_diagnostic.get("applied"):
+                    measurement_gauge_shift_xy_m = float(np.linalg.norm(
+                        np.asarray(
+                            root_pose_gauge_diagnostic[
+                                "applied_position_delta_m"
+                            ],
+                            dtype=float,
+                        )[:2]
+                    ))
+            pose_install_accepted, pose_install_reason = (
+                _articulated_pose_install_decision(
+                    pose_owner_enabled=causal_pose is not None,
+                    root_update_accepted=bool(decision.accepted),
+                    articulated_update_accepted=bool(
+                        payload["articulated_accepted"]
+                    ),
+                    measurement_primary_side=measurement_primary_side,
+                    availability_primary_side=(
+                        None if foothold_corrector is None
+                        else foothold_corrector.primary_side
+                    ),
+                    measurement_ik_has_foothold_constraint=bool(
+                        measurement_footholds
+                    ),
+                    availability_has_root_support_owner=any(
+                        evidence.owns_root_constraint
+                        for evidence in latest_contact_evidence.values()
+                    ),
+                    measurement_gauge_shift_xy_m=(
+                        measurement_gauge_shift_xy_m
+                    ),
+                    maximum_gauge_shift_xy_m=(
+                        H02_ROOT_XY_STEP_REFERENCE_M["maximum"]
+                    ),
+                )
             )
             reconcile_diagnostic = None
             if ankle_contact:
                 offsets_before_install, velocity_before_install, _sample_before = (
-                    ankle_pose_at(availability_time)
+                    ankle_pose_at(
+                        availability_time,
+                        publish_hinge_temporal=False,
+                    )
                 )
                 if pose_install_accepted:
+                    previous_pose_target = causal_pose.transition_snapshot()[
+                        "target_correction"
+                    ]
                     correction = {
                         segment: np.asarray(
                             payload["segment_correction_rotvec"], dtype=float
@@ -2850,6 +2881,15 @@ def run(
                         availability_time_s=availability_time,
                     )
                     transition = causal_pose.transition_snapshot()
+                    target_delta_maximum_rad = max(
+                        float((
+                            Rotation.from_rotvec(previous_pose_target[segment]).inv()
+                            * Rotation.from_rotvec(
+                                transition["target_correction"][segment]
+                            )
+                        ).magnitude())
+                        for segment in ARTICULATED_SEGMENTS
+                    )
                     pose_install_events.append({
                         "measurement_time_s": float(
                             payload["measurement_time_s"]
@@ -2858,12 +2898,11 @@ def run(
                         "transition_period_s": float(
                             transition["period_s"]
                         ),
-                        "target_delta_maximum_rad": float(
-                            transition["target_delta_maximum_rad"]
-                        ),
+                        "target_delta_maximum_rad": target_delta_maximum_rad,
                     })
                 offsets, offset_velocity, pose_sample_after = ankle_pose_at(
-                    availability_time
+                    availability_time,
+                    publish_hinge_temporal=False,
                 )
                 if causal_pose is not None:
                     root_before_pose_reconcile = (
@@ -2889,6 +2928,12 @@ def run(
                             operator=reconcile.replay_operator,
                             owner="UWB_AVAILABILITY_POSE_REGAUGE",
                         )
+                        if root_correction_slew is not None:
+                            root_correction_slew.install(
+                                availability_time,
+                                reconcile.applied_position_delta_m,
+                                enforce_filter_influence_cap=False,
+                            )
                 constrained, post_uwb_contact = foothold_corrector.update(
                     fused_filter.current_state,
                     evidence=latest_contact_evidence,
@@ -2901,6 +2946,12 @@ def run(
                         operator=post_uwb_contact.replay_operator,
                         owner="UWB_AVAILABILITY_FOOTHOLD_SOFT_UPDATE",
                     )
+                    if root_correction_slew is not None:
+                        root_correction_slew.install(
+                            availability_time,
+                            post_uwb_contact.applied_position_delta_m,
+                            enforce_filter_influence_cap=False,
+                        )
                     post_uwb_contact_reapplications += 1
                 if causal_pose is not None:
                     reconcile_diagnostic = {
@@ -3031,6 +3082,15 @@ def run(
                 ),
                 "contact_influence_multiplier": contact_influence_multiplier,
                 "articulated_pose_installed": pose_install_accepted,
+                "articulated_pose_install_reason": pose_install_reason,
+                "measurement_primary_support_side": measurement_primary_side,
+                "measurement_pose_gauge_shift_xy_m": (
+                    measurement_gauge_shift_xy_m
+                ),
+                "availability_primary_support_side": (
+                    None if foothold_corrector is None
+                    else foothold_corrector.primary_side
+                ),
                 "measurement_time_foothold_sides": sorted(
                     measurement_footholds
                 ),
@@ -3051,6 +3111,7 @@ def run(
         raise RuntimeError("fusion produced insufficient output")
     times = np.asarray(output_time) - bootstrap_time
     fused = np.asarray(fused_position)
+    filter_posterior = np.asarray(filter_posterior_position)
     inertial = np.asarray(imu_position)
     uwb_position = np.asarray([row["position_m"] for row in observations])
     uwb_time = np.asarray([row["measurement_time_s"] for row in observations]) - bootstrap_time
@@ -3135,6 +3196,16 @@ def run(
             "delayed UWB availability-time influence gate failed"
         )
     fused_velocity_array = np.asarray(fused_velocity)
+    filter_posterior_velocity_array = np.asarray(filter_posterior_velocity)
+    root_correction_withheld_array = np.asarray(
+        root_correction_withheld, dtype=float
+    )
+    root_correction_release_velocity_array = np.asarray(
+        root_correction_release_velocity, dtype=float
+    )
+    root_correction_active_count_array = np.asarray(
+        root_correction_active_count, dtype=int
+    )
     fused_bias_array = np.asarray(fused_bias)
     contact_confidence_array = np.asarray(contact_confidence, dtype=float)
     contact_active_array = np.asarray(contact_active, dtype=bool)
@@ -3297,6 +3368,7 @@ def run(
     prior_held_uwb_gate = _prior_held_uwb_gate(
         times,
         contact_prior_held_array,
+        contact_confirmed_array,
         decisions,
         bootstrap_time_s=bootstrap_time,
         dropout_s=RootFilterConfig().uwb_dropout_s,
@@ -3351,6 +3423,12 @@ def run(
 
     def runtime_contact_diagnostic() -> dict[str, Any]:
         return {
+            # A hard contact/prior failure is only actionable when the UWB
+            # decisions inside the failed interval are preserved.  Without
+            # these rows the failure merely reports starvation and forces a
+            # second blind full-action run to learn why every update was
+            # rejected.
+            "uwb_decisions": decisions,
             "contact_aware_articulated_events": (
                 contact_aware_articulated_events
             ),
@@ -3912,6 +3990,15 @@ def run(
         time_s=times,
         fused_root_position_world_m=fused,
         fused_root_velocity_world_mps=fused_velocity_array,
+        filter_posterior_root_position_world_m=filter_posterior,
+        filter_posterior_root_velocity_world_mps=(
+            filter_posterior_velocity_array
+        ),
+        root_correction_withheld_m=root_correction_withheld_array,
+        root_correction_release_velocity_mps=(
+            root_correction_release_velocity_array
+        ),
+        root_correction_active_count=root_correction_active_count_array,
         fused_accelerometer_bias_sensor_mps2=fused_bias_array,
         imu_only_root_position_world_m=inertial,
         imu_only_root_velocity_world_mps=np.asarray(imu_velocity),
@@ -4112,6 +4199,21 @@ def run(
                 ),
                 "outward_axis": "NODE_MINUS_Z_IN_FROZEN_SEGMENT_FRAME",
             },
+            "other_body_occlusion": {
+                "enabled": body_occlusion,
+                "geometry": (
+                    "CAUSAL_PRIOR_FK_TAPERED_SOFT_FIELD"
+                    if body_occlusion else "DISABLED"
+                ),
+                "policy": (
+                    "CURRENT_POSITIVE_INNOVATION_PLUS_PRIOR_ANTENNA_AND_BODY_"
+                    "GEOMETRY_PLUS_BOUNDED_PER_LINK_HISTORY;SOFT_WEIGHT_ONLY"
+                    if body_occlusion else "DISABLED"
+                ),
+                "future_samples_consumed": False,
+                "hard_range_deletion": False,
+                "maximum_state_entries": 80,
+            },
             "node_propagation": {
                 "enabled": effective_body_update == "articulated_consensus",
                 "method": "ONE_CONNECTED_FK_TREE;NO_INDEPENDENT_NODE_TRANSLATIONS",
@@ -4184,6 +4286,10 @@ def run(
             "position_updates_attempted_after_bootstrap": len(decisions),
             "position_updates_accepted": len(accepted),
             "position_updates_rejected": len(decisions) - len(accepted),
+            "root_correction_slew_installs": (
+                0 if root_correction_slew is None
+                else root_correction_slew.installed_count
+            ),
             "position_updates_by_contact_support": position_update_by_support,
             "shared_roots_withheld_from_filter": int(np.sum(
                 ~observation_update_mask
@@ -4290,6 +4396,40 @@ def run(
             "fused_root_horizontal_path_m": float(np.sum(np.linalg.norm(
                 np.diff(fused[:, :2], axis=0), axis=1
             ))),
+            "root_correction_publication": {
+                "enabled": root_correction_slew is not None,
+                "release_period_s": root_correction_release_s,
+                "accepted_state_corrections_installed": (
+                    0 if root_correction_slew is None
+                    else root_correction_slew.installed_count
+                ),
+                "maximum_withheld_correction_m": float(np.max(
+                    np.linalg.norm(root_correction_withheld_array, axis=1)
+                )),
+                "maximum_release_velocity_mps": float(np.max(
+                    np.linalg.norm(
+                        root_correction_release_velocity_array, axis=1
+                    )
+                )),
+                "posterior_frame_implied_speed_maximum_mps": float(np.max(
+                    np.linalg.norm(np.diff(filter_posterior, axis=0), axis=1)
+                    / np.diff(times)
+                )),
+                "published_frame_implied_speed_maximum_mps": float(np.max(
+                    np.linalg.norm(np.diff(fused, axis=0), axis=1)
+                    / np.diff(times)
+                )),
+                "posterior_frame_implied_speed_p99_mps": float(np.percentile(
+                    np.linalg.norm(np.diff(filter_posterior, axis=0), axis=1)
+                    / np.diff(times),
+                    99,
+                )),
+                "published_frame_implied_speed_p99_mps": float(np.percentile(
+                    np.linalg.norm(np.diff(fused, axis=0), axis=1)
+                    / np.diff(times),
+                    99,
+                )),
+            },
             "contact": {
                 "active_fraction": {
                     side: float(np.mean(contact_active_array[:, index]))
@@ -4388,6 +4528,19 @@ def run(
                     for row in observations
                 ]))
             ),
+            "other_body_occlusion": {
+                "enabled": body_occlusion,
+                "downweighted_fraction": float(np.mean(np.concatenate([
+                    row["link_information_weight"] < 0.999999
+                    for row in observations
+                ]))),
+                "median_information_weight": float(np.median(np.concatenate([
+                    row["link_information_weight"] for row in observations
+                ]))),
+                "median_body_occlusion_score": float(np.median(np.concatenate([
+                    row["body_occlusion_score"] for row in observations
+                ]))),
+            },
             "articulated_range_fit": {
                 "accepted_update_count": int(sum(
                     row["articulated_accepted"] for row in observations
@@ -4502,6 +4655,17 @@ def main() -> None:
         help="enable bilateral ankle-IMU contact and soft world footholds",
     )
     parser.add_argument(
+        "--body-occlusion", action="store_true",
+        help="enable causal soft other-body UWB link reliability",
+    )
+    parser.add_argument(
+        "--root-correction-release-s", type=float,
+        help=(
+            "release accepted UWB root corrections continuously over this "
+            "period; omitted preserves the existing instantaneous output"
+        ),
+    )
+    parser.add_argument(
         "--stationary-no-flight-prior", action="store_true",
         help="H02-only explicit stationary/no-flight support prior",
     )
@@ -4549,6 +4713,8 @@ def main() -> None:
             else args.pre_ik_hxx_report.resolve()
         ),
         maximum_duration_s=args.maximum_duration_s,
+        body_occlusion=args.body_occlusion,
+        root_correction_release_s=args.root_correction_release_s,
     )
     print(json.dumps(_json_ready({
         "status": result["status"],

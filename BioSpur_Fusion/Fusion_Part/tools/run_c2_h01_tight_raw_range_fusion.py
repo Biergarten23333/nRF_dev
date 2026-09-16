@@ -10,13 +10,10 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import math
 from pathlib import Path
 import time
 
 import numpy as np
-import qmt
-from scipy.spatial.transform import Rotation
 
 from biospur_fusion.c2_uwb_root_world.run_calibration import (
     LAYOUT,
@@ -34,6 +31,7 @@ from biospur_fusion.ingest.events import RecordType
 from biospur_fusion.ingest.v47 import decode_measurements
 from biospur_fusion.root_r3.estimator import RootFilterConfig, propagate_inertial
 from biospur_fusion.root_r3.models import RootState
+from c2_native200_contact_support import pelvis_imu as _pelvis_imu
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -93,66 +91,6 @@ def _to_uwb_row(event) -> UwbRow:
         identity=int(value["identity"]),
         node_ms=int(value["node_ms"]),
     )
-
-
-def _yaw_rotation(angle: float) -> np.ndarray:
-    c, s = math.cos(angle), math.sin(angle)
-    return np.array([[c, -s, 0.0], [s, c, 0.0], [0.0, 0.0, 1.0]])
-
-
-def _pelvis_imu(events, clock, start_ns: int, yaw_offset_deg: float) -> tuple[list[dict], dict]:
-    rows = sorted(
-        (event for event in events if event.node_id == PELVIS_NODE and event.record_type is RecordType.IMU),
-        key=lambda event: int(event.node_timer_us),
-    )
-    if len(rows) < 100:
-        raise RuntimeError("insufficient pelvis IMU")
-    block = qmt.OriEstVQFBlock(0.005)
-    decoded = []
-    for event in rows:
-        acceleration = np.asarray(event.payload["acc_raw"], float) / 2048.0 * G
-        gyroscope = np.deg2rad(np.asarray(event.payload["gyro_raw"], float) / 16.384)
-        quaternion = np.asarray(block.step(gyroscope, acceleration, None), float)
-        rotation = Rotation.from_quat(quaternion[[1, 2, 3, 0]]).as_matrix()
-        global_s = clock.seconds(int(event.node_timer_us))
-        decoded.append({
-            "time_s": global_s,
-            "acceleration": acceleration,
-            "rotation_vqf": rotation,
-            "sequence": int(event.sequence),
-        })
-
-    # VQF owns gravity, but not navigation yaw.  The world binding provides a
-    # soft initial body-forward prior toward -Y; pelvis sensor -Z is the sealed
-    # qualitative forward direction.  Apply only the yaw needed to align the
-    # median pre-action horizontal projection with -Y and preserve this as an
-    # explicit diagnostic gauge rather than calibration truth.
-    preparation = [row for row in decoded if start_ns * 1e-9 - 2.0 <= row["time_s"] < start_ns * 1e-9]
-    if len(preparation) < 100:
-        raise RuntimeError("insufficient pre-action IMU for the yaw gauge")
-    forward = np.median(
-        np.stack([row["rotation_vqf"] @ np.array([0.0, 0.0, -1.0]) for row in preparation]),
-        axis=0,
-    )
-    if np.linalg.norm(forward[:2]) < 0.25:
-        raise RuntimeError("pelvis -Z lacks a stable horizontal heading projection")
-    measured_angle = math.atan2(forward[1], forward[0])
-    target_angle = -math.pi / 2.0
-    yaw_delta = target_angle - measured_angle + math.radians(float(yaw_offset_deg))
-    navigation_from_vqf = _yaw_rotation(yaw_delta)
-    for row in decoded:
-        row["rotation_world"] = navigation_from_vqf @ row.pop("rotation_vqf")
-    return decoded, {
-        "orientation_filter": "qmt.OriEstVQFBlock",
-        "vqf_instances": 1,
-        "vqf_resets": 0,
-        "sample_period_argument_s": 0.005,
-        "initial_yaw_role": "SOFT_GAUGE_NOT_ABSOLUTE_YAW_CALIBRATION",
-        "initial_body_forward_target_world": [0.0, -1.0, 0.0],
-        "pelvis_sensor_forward_proxy": "sensor_minus_Z_qualitative",
-        "yaw_delta_rad": yaw_delta,
-        "yaw_sensitivity_offset_deg": float(yaw_offset_deg),
-    }
 
 
 def _initialize(first: UwbRow, anchors: np.ndarray, clock) -> RootState:

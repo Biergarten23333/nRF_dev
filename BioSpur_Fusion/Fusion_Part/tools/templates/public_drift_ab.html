@@ -1,0 +1,35 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>抗漂 / 不抗漂 · 同步对比</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#10171c;color:#dce7ef;font:15px system-ui}header{padding:16px 22px;background:#18232c}h2{margin:0 0 12px;font-size:21px}button,select{background:#263744;color:inherit;border:1px solid #506577;border-radius:5px;padding:8px;margin-right:7px;cursor:pointer}.note{color:#acbfcb;font-size:13px;margin-top:10px}#scene{width:100%;height:62vh;min-height:360px;display:block;touch-action:none}#scrub{width:75%;vertical-align:middle}nav{padding:12px 22px}#graph{width:100%;height:190px;display:block}footer{padding:10px 22px;color:#adc0cd;font-size:13px}
+</style><header><h2>不抗漂 / 抗漂 · 同步交互对比</h2><button id="play">播放</button><select id="speed"><option>1</option><option>0.5</option><option>2</option></select><button id="home">起点视野</button><button id="all">全程总览</button><button id="front">正面</button><button id="oblique">斜前</button><select id="trail"><option value="on">显示轨迹</option><option value="off">隐藏轨迹</option></select><div class="note">同一段 70 秒实验数据 · 同一起点、同一时间、同一相机 · 地面 Z=0，细格 1 m · 拖动旋转，滚轮缩放 · 不修改输出轨迹</div></header>
+<canvas id="scene"></canvas><nav><span id="clock"></span> <input id="scrub" type="range" min="0" step="0.005" value="0"></nav>
+<canvas id="graph"></canvas><footer>曲线为相对起点的三维净位移，不是定位真值误差。右下图单独放大抗漂曲线，纵轴比例与左图不同。本页仅为当前 70 秒实验展示，不代表全程验证。</footer>
+<script>
+const D=__PAYLOAD__;
+function unpack(s){const b=atob(s), a=new Uint8Array(b.length);for(let i=0;i<b.length;i++)a[i]=b.charCodeAt(i);return new Float32Array(a.buffer)}
+const T=unpack(D.time),A=unpack(D.a),B=unpack(D.b),PA=unpack(D.pa),PB=unpack(D.pb),N=D.count,J=D.joints;
+const scene=document.querySelector('#scene'),graph=document.querySelector('#graph'),scrub=document.querySelector('#scrub');scrub.max=D.duration;
+let cursor=0,idx=0,playing=false,last=0,yaw=-.7,pitch=.45,span=7,center=[A[0],A[1],1],drag=null;
+const colors=['#ffa954','#42d8d4'];
+function setup(canvas){const r=canvas.getBoundingClientRect(),d=devicePixelRatio||1;canvas.width=r.width*d;canvas.height=r.height*d;const c=canvas.getContext('2d');c.scale(d,d);return[c,r.width,r.height]}
+function line(c,a,b,color,width=1){c.strokeStyle=color;c.lineWidth=width;c.beginPath();c.moveTo(...a);c.lineTo(...b);c.stroke()}
+function project(w,h,offset){const scale=Math.min(w,h)/span;return p=>{const x=p[0]-center[0],y=p[1]-center[1],z=p[2]-center[2],u=Math.cos(yaw)*x-Math.sin(yaw)*y,v=Math.sin(yaw)*x+Math.cos(yaw)*y;return[offset+w/2+u*scale,h/2+(v*Math.sin(pitch)-z*Math.cos(pitch))*scale]}}
+function panel(c,w,h,offset,roots,pose,which){c.save();c.beginPath();c.rect(offset,0,w,h);c.clip();const p=project(w,h,offset),r=Array.from(roots.slice(idx*3,idx*3+3));
+// Ground is a fixed world plane, never the current root/hip height.
+const radius=Math.ceil(span),cx=Math.round(center[0]),cy=Math.round(center[1]);
+for(let i=-radius;i<=radius;i++){const x=cx+i,y=cy+i;line(c,p([x,cy-radius,D.ground_z]),p([x,cy+radius,D.ground_z]),'#2c3d48');line(c,p([cx-radius,y,D.ground_z]),p([cx+radius,y,D.ground_z]),'#2c3d48')}
+if(document.querySelector('#trail').value==='on'){const stride=Math.max(1,Math.ceil(idx/2500));for(let i=stride;i<=idx;i+=stride)line(c,p(Array.from(roots.slice((i-stride)*3,(i-stride)*3+3))),p(Array.from(roots.slice(i*3,i*3+3))),colors[which],1.5)}
+for(const[a,b,side]of D.lines){const point=j=>[0,1,2].map(k=>pose[(idx*J+j)*3+k]+r[k]);const u=p(point(a)),v=p(point(b));line(c,u,v,side==='left'?'#65baff':side==='right'?'#ffae69':'#e6eff4',3);c.fillStyle='#e6eff4';for(const q of[u,v]){c.beginPath();c.arc(...q,2.6,0,7);c.fill()}}
+c.fillStyle='#10171ce8';c.fillRect(offset,0,w,80);c.fillStyle=colors[which];c.font='bold 18px system-ui';c.fillText(which?'B：抗漂':'A：不抗漂',offset+22,28);c.font='14px system-ui';const dist=Math.hypot(...r.map((v,k)=>v-roots[k]));c.fillText(`当前距起点 ${dist.toFixed(3)} m · 全段最大 ${D.metrics[which].maximum.toFixed(3)} m`,offset+22,54);
+const q=p(r);if(q[0]<offset||q[0]>offset+w||q[1]<80||q[1]>h){c.fillStyle=colors[which];c.fillText('已离开当前视野；点击「全程总览」查看',offset+22,h-20)}c.restore()}
+const distances=[A,B].map(a=>Array.from(T,(_,i)=>Math.hypot(a[i*3]-a[0],a[i*3+1]-a[1],a[i*3+2]-a[2])));
+function plot(c,x,y,w,h,series,max,title){c.fillStyle='#dce7ef';c.font='13px system-ui';c.fillText(title,x,y-12);const at=(i,v)=>[x+T[i]/D.duration*w,y+h-v/max*h];line(c,[x,y],[x,y+h],'#627786');line(c,[x,y+h],[x+w,y+h],'#627786');c.fillText(max.toFixed(2)+' m',x,y+12);c.fillText('0',x,y+h+16);for(const s of series){for(let i=1;i<N;i++)line(c,at(i-1,distances[s][i-1]),at(i,distances[s][i]),colors[s],1.6)}const xx=x+cursor/D.duration*w;line(c,[xx,y],[xx,y+h],'#e4ecf0')}
+function draw(){while(idx<N-1&&T[idx+1]<=cursor)idx++;while(idx>0&&T[idx]>cursor)idx--;const[c,w,h]=setup(scene);panel(c,w/2,h,0,A,PA,0);panel(c,w/2,h,w/2,B,PB,1);line(c,[w/2,0],[w/2,h],'#526574');const[g,gw,gh]=setup(graph);plot(g,45,35,gw*.57-55,gh-65,[0,1],Math.max(.01,...D.metrics.map(m=>m.maximum))*1.05,'共同尺度：不抗漂 / 抗漂');plot(g,gw*.65,35,gw*.35-30,gh-65,[1],Math.max(.01,D.metrics[1].maximum)*1.05,'抗漂曲线放大（独立纵轴）');document.querySelector('#clock').textContent=`${cursor.toFixed(2)} / ${D.duration.toFixed(2)} s`;scrub.value=cursor}
+document.querySelector('#play').onclick=()=>{playing=!playing;if(cursor>=D.duration)cursor=0;document.querySelector('#play').textContent=playing?'暂停':'播放'};
+scrub.oninput=()=>{cursor=Number(scrub.value);draw()};document.querySelector('#trail').onchange=draw;
+document.querySelector('#home').onclick=()=>{center=[A[0],A[1],1];span=7;draw()};
+document.querySelector('#all').onclick=()=>{const lo=[Infinity,Infinity,0],hi=[-Infinity,-Infinity,2];for(const a of[A,B])for(let i=0;i<a.length;i++) {const k=i%3;lo[k]=Math.min(lo[k],a[i]);hi[k]=Math.max(hi[k],a[i])}center=lo.map((v,k)=>(v+hi[k])/2);span=Math.hypot(...hi.map((v,k)=>v-lo[k]))*1.35+4;draw()};
+document.querySelector('#front').onclick=()=>{yaw=0;pitch=.12;draw()};document.querySelector('#oblique').onclick=()=>{yaw=-.7;pitch=.45;draw()};
+scene.onpointerdown=e=>{drag=[e.clientX,e.clientY];scene.setPointerCapture(e.pointerId)};scene.onpointerup=()=>drag=null;scene.onpointermove=e=>{if(!drag)return;yaw+=(e.clientX-drag[0])*.006;pitch=Math.max(-1.3,Math.min(1.3,pitch+(e.clientY-drag[1])*.006));drag=[e.clientX,e.clientY];draw()};scene.addEventListener('wheel',e=>{e.preventDefault();span=Math.max(2,Math.min(500,span*Math.exp(e.deltaY*.001)));draw()},{passive:false});
+window.onresize=draw;function tick(now){if(playing){cursor=Math.min(D.duration,cursor+(now-last)/1000*Number(document.querySelector('#speed').value));if(cursor>=D.duration){playing=false;document.querySelector('#play').textContent='播放'}draw()}last=now;requestAnimationFrame(tick)}draw();requestAnimationFrame(tick);
+</script></html>

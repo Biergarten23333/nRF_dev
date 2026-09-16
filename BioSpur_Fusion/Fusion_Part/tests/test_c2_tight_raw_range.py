@@ -1,4 +1,7 @@
+from dataclasses import replace
+
 import numpy as np
+import pytest
 
 from biospur_fusion.c2_uwb_root_world.tight_range import (
     PersistentRangeBiasTracker,
@@ -241,6 +244,36 @@ def test_fixed_lag_channel_updates_velocity_without_position_jump():
     np.testing.assert_array_equal(decision.accelerometer_bias_delta_mps2, np.zeros(3))
     np.testing.assert_array_equal(state.accelerometer_bias_mps2, np.zeros(3))
     assert decision.rank >= 3
+
+
+def test_prepared_velocity_only_drift_commit_and_rollback_are_owner_bound():
+    corrector = FixedLagRangeDriftCorrector(FixedLagDriftConfig(
+        minimum_lag_s=0.30, maximum_lag_s=0.75,
+        update_period_s=0.48, minimum_rows=8,
+    ))
+    state = _state(0.0, np.array([2.0, 1.2, 0.9]))
+    before = corrector.owner_digest()
+    plan = corrector.prepare_velocity_only(
+        state, node="BSFC2CC", decision=_decision(0.0, np.zeros(8)),
+        anchors_m=ANCHORS, tag_offset_world_m=np.zeros(3),
+        tag_offset_velocity_world_mps=np.zeros(3),
+    )
+    assert corrector.owner_digest() == before
+    corrector.prevalidate_prepared(plan)
+    corrector.commit_prepared(plan)
+    assert corrector.owner_digest() == plan.candidate_owner_digest
+    corrector.rollback_committed_prepared(plan)
+    assert corrector.owner_digest() == before
+    with pytest.raises(RuntimeError, match="STALE_FORGED_OR_FOREIGN"):
+        corrector.commit_prepared(plan)
+
+    other = FixedLagRangeDriftCorrector(corrector.config)
+    other_before = other.owner_digest()
+    with pytest.raises(RuntimeError, match="STALE_FORGED_OR_FOREIGN"):
+        other.prevalidate_prepared(plan)
+    with pytest.raises(RuntimeError, match="STALE_FORGED_OR_FOREIGN"):
+        corrector.prevalidate_prepared(replace(plan, digest="0" * 64))
+    assert other.owner_digest() == other_before
 
 
 def test_fixed_lag_ledger_does_not_reinterpret_absolute_steps_as_drift():

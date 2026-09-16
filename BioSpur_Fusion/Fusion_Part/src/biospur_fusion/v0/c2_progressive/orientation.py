@@ -1,7 +1,11 @@
 """One-state-per-node continuous six-axis orientation frontend for C2."""
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import InitVar, dataclass, field
+import hashlib
+from importlib.metadata import version as package_version
+import json
+from types import MappingProxyType
 from typing import Any, Mapping
 
 import numpy as np
@@ -15,6 +19,36 @@ from .range_reader import DecodedAction, EXPECTED_STEP_US
 ACC_SCALE = 9.80665 / 2048.0
 GYRO_SCALE = np.deg2rad(1.0 / 16.384)
 RAW_SATURATION_GUARD = 32760
+_RUNTIME_VQF_TILT_PROVENANCE_CAPABILITY = object()
+
+
+def _semantic_digest(value: Any) -> str:
+    def canonical(item: Any) -> Any:
+        if isinstance(item, np.ndarray):
+            array = np.ascontiguousarray(item)
+            return {
+                "dtype": array.dtype.str, "shape": list(array.shape),
+                "sha256": hashlib.sha256(array.view(np.uint8)).hexdigest(),
+            }
+        if isinstance(item, Mapping):
+            return {str(key): canonical(val) for key, val in sorted(item.items())}
+        if isinstance(item, (tuple, list)):
+            return [canonical(val) for val in item]
+        if isinstance(item, np.generic):
+            return item.item()
+        return item
+    return hashlib.sha256(json.dumps(
+        canonical(value), sort_keys=True, separators=(",", ":"), allow_nan=False,
+    ).encode()).hexdigest()
+
+
+def _readonly_array_map(values: Mapping[str, np.ndarray]) -> Mapping[str, np.ndarray]:
+    frozen = {}
+    for key, value in values.items():
+        array = np.asarray(value).copy()
+        array.setflags(write=False)
+        frozen[str(key)] = array
+    return MappingProxyType(frozen)
 
 
 def contiguous_span_ids(
@@ -133,6 +167,128 @@ class OrientedAction:
     calibration_posterior_by_node: Mapping[str, Mapping[str, Any]] = field(
         default_factory=dict
     )
+    imu_sample_sequence_by_node: Mapping[str, np.ndarray] = field(default_factory=dict)
+    raw_start_offset_by_node: Mapping[str, np.ndarray] = field(default_factory=dict)
+    raw_end_offset_by_node: Mapping[str, np.ndarray] = field(default_factory=dict)
+    raw_sample_index_by_node: Mapping[str, np.ndarray] = field(default_factory=dict)
+    vqf_relative_rest_deviation_by_node: Mapping[str, np.ndarray] = field(default_factory=dict)
+    acceleration_norm_residual_mps2_by_node: Mapping[str, np.ndarray] = field(default_factory=dict)
+    world_tilt_innovation_rad_by_node: Mapping[str, np.ndarray] = field(default_factory=dict)
+    vqf_tilt_diagnostic_provenance_digest: str | None = None
+    vqf_tilt_source_binding_digest_by_node: Mapping[str, str] = field(default_factory=dict)
+    vqf_tilt_diagnostic_provenance: "VQFTiltDiagnosticProvenance | None" = None
+    vqf_tilt_source_binding_payload_by_node: Mapping[str, Mapping[str, Any]] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class VQFTiltDiagnosticProvenance:
+    """Runtime-seal-derived owner; it intentionally does not claim global time."""
+
+    prefit_seal_sha256: str
+    qualified_source_closure_digest: str
+    initial_stochastic_state_semantic_sha256: str
+    initial_stochastic_state_source_status: str
+    initial_stochastic_state_source_sha256: str | None
+    settings_semantic_sha256: str
+    timer_domain: str
+    vqf_version: str
+    vqf_parameters_digest: str
+    action00_source_authority_sha256: str | None = None
+    action00_source_authority_role: str | None = None
+    initial_stochastic_state_source_relative_path: str | None = None
+    initial_stochastic_state_source_size: int | None = None
+    initial_stochastic_state_source_mtime_ns: int | None = None
+    digest: str = ""
+    _issuance: InitVar[object | None] = None
+
+    def __post_init__(self, _issuance: object | None) -> None:
+        digests = (
+            self.prefit_seal_sha256, self.qualified_source_closure_digest,
+            self.initial_stochastic_state_semantic_sha256,
+            self.settings_semantic_sha256, self.vqf_parameters_digest,
+        )
+        if (
+            _issuance is not _RUNTIME_VQF_TILT_PROVENANCE_CAPABILITY
+            or any(len(value) != 64 or any(c not in "0123456789abcdef" for c in value)
+                for value in digests)
+            or self.timer_domain != "B306_TIMER2_US_NODE_LOCAL"
+            or self.vqf_version != package_version("vqf")
+            or ((self.action00_source_authority_sha256 is None)
+                != (self.action00_source_authority_role is None))
+            or (self.action00_source_authority_sha256 is not None and (
+                len(self.action00_source_authority_sha256) != 64
+                or self.action00_source_authority_role != "ACTION00_ENGINEERING_POLICY"
+            ))
+            or self.initial_stochastic_state_source_status not in {
+                "SEAL_OWNED", "SEALED_SETTINGS_PATH_AND_SEMANTIC_BOUND",
+                "MISSING_FROM_QUALIFIED_SOURCE_CLOSURE",
+            }
+            or (self.initial_stochastic_state_source_status in {
+                "SEAL_OWNED", "SEALED_SETTINGS_PATH_AND_SEMANTIC_BOUND",
+            } and (
+                self.initial_stochastic_state_source_sha256 is None
+                or len(self.initial_stochastic_state_source_sha256) != 64
+            ))
+            or (self.initial_stochastic_state_source_status == "MISSING_FROM_QUALIFIED_SOURCE_CLOSURE"
+                and any(value is not None for value in (
+                    self.initial_stochastic_state_source_sha256,
+                    self.initial_stochastic_state_source_relative_path,
+                    self.initial_stochastic_state_source_size,
+                    self.initial_stochastic_state_source_mtime_ns,
+                )))
+            or (self.initial_stochastic_state_source_status == "SEALED_SETTINGS_PATH_AND_SEMANTIC_BOUND"
+                and (not self.initial_stochastic_state_source_relative_path
+                     or type(self.initial_stochastic_state_source_size) is not int
+                     or self.initial_stochastic_state_source_size <= 0
+                     or type(self.initial_stochastic_state_source_mtime_ns) is not int
+                     or self.initial_stochastic_state_source_mtime_ns <= 0))
+        ):
+            raise ValueError("invalid VQF tilt-diagnostic provenance")
+        expected = _semantic_digest({
+            "schema": "biospur-c2-vqf-tilt-diagnostic-provenance-v1",
+            "prefit_seal_sha256": self.prefit_seal_sha256,
+            "qualified_source_closure_digest": self.qualified_source_closure_digest,
+            "initial_stochastic_state_semantic_sha256": self.initial_stochastic_state_semantic_sha256,
+            "initial_stochastic_state_source_status": self.initial_stochastic_state_source_status,
+            "initial_stochastic_state_source_sha256": self.initial_stochastic_state_source_sha256,
+            "initial_stochastic_state_source_relative_path": self.initial_stochastic_state_source_relative_path,
+            "initial_stochastic_state_source_size": self.initial_stochastic_state_source_size,
+            "initial_stochastic_state_source_mtime_ns": self.initial_stochastic_state_source_mtime_ns,
+            "settings_semantic_sha256": self.settings_semantic_sha256,
+            "timer_domain": self.timer_domain,
+            "vqf_version": self.vqf_version,
+            "vqf_parameters_digest": self.vqf_parameters_digest,
+            "action00_source_authority_sha256": self.action00_source_authority_sha256,
+            "action00_source_authority_role": self.action00_source_authority_role,
+            "global_clock_binding": "NOT_OWNED_HERE",
+        })
+        if self.digest and self.digest != expected:
+            raise ValueError("VQF tilt-diagnostic provenance digest mismatch")
+        object.__setattr__(self, "digest", expected)
+
+    @property
+    def product_ready(self) -> bool:
+        return False
+
+
+def verify_vqf_tilt_source_binding(oriented: OrientedAction, node: str) -> str:
+    """Recompute the immutable row-identity portion before downstream use."""
+    payload = dict(oriented.vqf_tilt_source_binding_payload_by_node[node])
+    current = {
+        "retained_time_us_digest": _semantic_digest(oriented.time_us_by_node[node]),
+        "retained_boot_digest": _semantic_digest(oriented.derived_boot_epoch_by_node[node]),
+        "retained_span_digest": _semantic_digest(oriented.contiguous_span_id_by_node[node]),
+        "retained_sequence_digest": _semantic_digest(oriented.imu_sample_sequence_by_node[node]),
+        "retained_raw_start_digest": _semantic_digest(oriented.raw_start_offset_by_node[node]),
+        "retained_raw_end_digest": _semantic_digest(oriented.raw_end_offset_by_node[node]),
+        "retained_raw_sample_index_digest": _semantic_digest(oriented.raw_sample_index_by_node[node]),
+    }
+    if any(payload.get(key) != value for key, value in current.items()):
+        raise ValueError("VQF tilt source arrays changed after provenance issuance")
+    digest = _semantic_digest(payload)
+    if digest != oriented.vqf_tilt_source_binding_digest_by_node[node]:
+        raise ValueError("VQF tilt source-binding digest mismatch")
+    return digest
 
 
 class ContinuousVQFState:
@@ -147,9 +303,12 @@ class ContinuousVQFState:
         unknown_boot_orientation_sigma_rad: float,
         unknown_unusable_episode_orientation_sigma_rad: float,
         calibration_settings: Mapping[str, Any] | None = None,
+        tilt_diagnostic_runtime_authority: Mapping[str, Any] | None = None,
+        _tilt_provenance_capability: object | None = None,
     ) -> None:
         self.sample_period_s = float(sample_period_s)
         self.initial = initial_stochastic_state
+        self._tilt_diagnostic_provenance: VQFTiltDiagnosticProvenance | None = None
         self.execution_guard = execution_guard
         self.unknown_boot_orientation_sigma_rad = float(unknown_boot_orientation_sigma_rad)
         self.unknown_unusable_episode_orientation_sigma_rad = float(
@@ -166,6 +325,19 @@ class ContinuousVQFState:
             node: VQF(self.sample_period_s, magDistRejectionEnabled=False)
             for node in self.nodes
         }
+        if tilt_diagnostic_runtime_authority is not None:
+            if _tilt_provenance_capability is not _RUNTIME_VQF_TILT_PROVENANCE_CAPABILITY:
+                raise ValueError("VQF diagnostic provenance requires validated runtime issuance")
+            parameter_digests = {
+                _semantic_digest(dict(instance.params)) for instance in self._vqf.values()
+            }
+            if len(parameter_digests) != 1:
+                raise RuntimeError("persistent VQF nodes disagree on exact parameters")
+            self._tilt_diagnostic_provenance = VQFTiltDiagnosticProvenance(
+                **dict(tilt_diagnostic_runtime_authority),
+                vqf_parameters_digest=next(iter(parameter_digests)),
+                _issuance=_RUNTIME_VQF_TILT_PROVENANCE_CAPABILITY,
+            )
         self._last_timer_us: dict[str, int | None] = {node: None for node in self.nodes}
         self._last_boot: dict[str, int | None] = {node: None for node in self.nodes}
         self._covariance = {node: np.zeros((3, 3), dtype=float) for node in self.nodes}
@@ -218,6 +390,15 @@ class ContinuousVQFState:
         residual_bias_out: dict[str, np.ndarray] = {}
         residual_bias_sigma_out: dict[str, np.ndarray] = {}
         rest_out: dict[str, np.ndarray] = {}
+        sequence_out: dict[str, np.ndarray] = {}
+        raw_start_out: dict[str, np.ndarray] = {}
+        raw_end_out: dict[str, np.ndarray] = {}
+        raw_sample_out: dict[str, np.ndarray] = {}
+        relative_rest_out: dict[str, np.ndarray] = {}
+        acceleration_norm_residual_out: dict[str, np.ndarray] = {}
+        world_tilt_innovation_out: dict[str, np.ndarray] = {}
+        tilt_source_binding_out: dict[str, str] = {}
+        tilt_source_payload_out: dict[str, Mapping[str, Any]] = {}
         calibration_out: dict[str, Mapping[str, Any]] = {}
         node_audit: dict[str, Any] = {}
         for node in self.nodes:
@@ -279,6 +460,15 @@ class ContinuousVQFState:
                 residual_bias_out[node] = np.empty((0, 3), dtype=float)
                 residual_bias_sigma_out[node] = np.empty(0, dtype=float)
                 rest_out[node] = np.empty(0, dtype=bool)
+                sequence_out[node] = np.empty(0, dtype=np.int64)
+                raw_start_out[node] = np.empty(0, dtype=np.uint64)
+                raw_end_out[node] = np.empty(0, dtype=np.uint64)
+                raw_sample_out[node] = np.empty(0, dtype=np.uint8)
+                relative_rest_out[node] = np.empty((0, 2), dtype=float)
+                acceleration_norm_residual_out[node] = np.empty(0, dtype=float)
+                world_tilt_innovation_out[node] = np.empty(0, dtype=float)
+                tilt_source_binding_out[node] = ""
+                tilt_source_payload_out[node] = MappingProxyType({})
                 if self._calibration_owner is not None:
                     calibration_out[node] = self._calibration_owner.snapshot(node)
                 node_audit[node] = {
@@ -373,7 +563,7 @@ class ContinuousVQFState:
                     })
                 gap_trace[sample_index] = self._covariance[node]
             span_results = [
-                self._vqf[node].updateBatch(
+                self._vqf[node].updateBatchFullState(
                     np.ascontiguousarray(gyro[span]), np.ascontiguousarray(acc[span]),
                 )
                 for span in quality.contiguous_spans
@@ -382,6 +572,10 @@ class ContinuousVQFState:
             residual_bias = np.concatenate([np.asarray(result["bias"], dtype=float) for result in span_results])
             residual_bias_sigma = np.concatenate([np.asarray(result["biasSigma"], dtype=float) for result in span_results])
             rest_detected = np.concatenate([np.asarray(result["restDetected"], dtype=bool) for result in span_results])
+            relative_rest = np.concatenate([
+                np.asarray(result["relativeRestDeviations"], dtype=float)
+                for result in span_results
+            ])
             if quat.shape != (len(rows), 4) or not np.isfinite(quat).all():
                 raise RuntimeError(f"{action.action}:{node}: invalid VQF output")
             if residual_bias.shape != gyro.shape or residual_bias_sigma.shape != (len(rows),):
@@ -402,6 +596,53 @@ class ContinuousVQFState:
             residual_bias_out[node] = residual_bias
             residual_bias_sigma_out[node] = residual_bias_sigma
             rest_out[node] = rest_detected
+            sequence_out[node] = rows["imu_sample_sequence"].astype(np.int64)
+            raw_start_out[node] = rows["raw_start_offset"].astype(np.uint64)
+            raw_end_out[node] = rows["raw_end_offset"].astype(np.uint64)
+            raw_sample_out[node] = rows["raw_sample_index"].astype(np.uint8)
+            relative_rest_out[node] = relative_rest
+            quaternion_xyzw = quat[:, [1, 2, 3, 0]]
+            vector = quaternion_xyzw[:, :3]
+            scalar = quaternion_xyzw[:, 3:4]
+            world_acceleration = (
+                acc
+                + 2.0 * np.cross(vector, np.cross(vector, acc) + scalar * acc)
+            )
+            acceleration_norm = np.linalg.norm(acc, axis=1)
+            initial_row = self.initial["nodes"][node]
+            gravity_norm = float(initial_row.get("accelerometer_norm_mps2", 9.80665))
+            acceleration_norm_residual = np.abs(acceleration_norm - gravity_norm)
+            world_tilt_innovation = np.arccos(np.clip(
+                world_acceleration[:, 2] / np.maximum(acceleration_norm, np.finfo(float).eps),
+                -1.0, 1.0,
+            ))
+            parameters = self._vqf[node].params
+            acceleration_norm_residual_out[node] = acceleration_norm_residual
+            world_tilt_innovation_out[node] = world_tilt_innovation
+            source_binding_payload = {
+                "schema": "biospur-c2-vqf-tilt-diagnostic-source-binding-candidate-v1",
+                "runtime_provenance_digest": (
+                    None if self._tilt_diagnostic_provenance is None
+                    else self._tilt_diagnostic_provenance.digest
+                ),
+                "action": action.action,
+                "chronological_index": action.chronological_index,
+                "interval": action.interval,
+                "access_audit_digest": _semantic_digest(action.access_audit),
+                "decode_audit_digest": _semantic_digest(action.decode_audit),
+                "node": node,
+                "retained_time_us_digest": _semantic_digest(time_us),
+                "retained_boot_digest": _semantic_digest(boot),
+                "retained_span_digest": _semantic_digest(span_id),
+                "retained_sequence_digest": _semantic_digest(sequence_out[node]),
+                "retained_raw_start_digest": _semantic_digest(raw_start_out[node]),
+                "retained_raw_end_digest": _semantic_digest(raw_end_out[node]),
+                "retained_raw_sample_index_digest": _semantic_digest(raw_sample_out[node]),
+                "vqf_parameters": parameters,
+            }
+            source_binding_digest = _semantic_digest(source_binding_payload)
+            tilt_source_binding_out[node] = source_binding_digest
+            tilt_source_payload_out[node] = MappingProxyType(source_binding_payload)
             if self._calibration_owner is not None:
                 calibration_out[node] = self._calibration_owner.update_episode(
                     node,
@@ -434,6 +675,18 @@ class ContinuousVQFState:
                     self._calibration_owner is not None
                 ),
                 "calibration_prediction": calibration_prediction,
+                "vqf_tilt_diagnostic": {
+                    "schema": "biospur-c2-vqf-tilt-raw-diagnostic-v1",
+                    "source": "PERSISTENT_VQF_FULL_STATE_PLUS_ACTION00_GRAVITY_NORM",
+                    "trust_policy_issued": False,
+                    "source_binding_digest": source_binding_digest,
+                    "common_clock_binding": "REQUIRED_DOWNSTREAM_NOT_PRESENT_IN_ORIENTATION_OWNER",
+                    "production_ready": False,
+                    "runtime_provenance_digest": (
+                        None if self._tilt_diagnostic_provenance is None
+                        else self._tilt_diagnostic_provenance.digest
+                    ),
+                },
                 "calibration_snapshot_semantic_sha256": (
                     None
                     if self._calibration_owner is None
@@ -462,6 +715,20 @@ class ContinuousVQFState:
                 "new_yaw_gauge": False,
             },
             calibration_posterior_by_node=calibration_out,
+            imu_sample_sequence_by_node=_readonly_array_map(sequence_out),
+            raw_start_offset_by_node=_readonly_array_map(raw_start_out),
+            raw_end_offset_by_node=_readonly_array_map(raw_end_out),
+            raw_sample_index_by_node=_readonly_array_map(raw_sample_out),
+            vqf_relative_rest_deviation_by_node=_readonly_array_map(relative_rest_out),
+            acceleration_norm_residual_mps2_by_node=_readonly_array_map(acceleration_norm_residual_out),
+            world_tilt_innovation_rad_by_node=_readonly_array_map(world_tilt_innovation_out),
+            vqf_tilt_diagnostic_provenance_digest=(
+                None if self._tilt_diagnostic_provenance is None
+                else self._tilt_diagnostic_provenance.digest
+            ),
+            vqf_tilt_source_binding_digest_by_node=MappingProxyType(dict(tilt_source_binding_out)),
+            vqf_tilt_diagnostic_provenance=self._tilt_diagnostic_provenance,
+            vqf_tilt_source_binding_payload_by_node=MappingProxyType(dict(tilt_source_payload_out)),
         )
 
     def audit(self) -> dict[str, Any]:
@@ -484,3 +751,31 @@ class ContinuousVQFState:
                 else self._calibration_owner.audit()
             ),
         }
+
+
+def _continuous_vqf_state_from_validated_action00_authority(
+    initial_stochastic_state: Mapping[str, Any], *,
+    execution_guard: Any,
+    sample_period_s: float,
+    unknown_boot_orientation_sigma_rad: float,
+    unknown_unusable_episode_orientation_sigma_rad: float,
+    calibration_settings: Mapping[str, Any],
+    validated_runtime_authority: Mapping[str, Any],
+) -> ContinuousVQFState:
+    """Issue diagnostics only after the Action00 runtime validates its pinned authority.
+
+    The provenance capability remains private to this module; the role-scoped
+    runtime can provide only the already validated immutable payload.
+    """
+    return ContinuousVQFState(
+        initial_stochastic_state,
+        execution_guard=execution_guard,
+        sample_period_s=sample_period_s,
+        unknown_boot_orientation_sigma_rad=unknown_boot_orientation_sigma_rad,
+        unknown_unusable_episode_orientation_sigma_rad=(
+            unknown_unusable_episode_orientation_sigma_rad
+        ),
+        calibration_settings=calibration_settings,
+        tilt_diagnostic_runtime_authority=validated_runtime_authority,
+        _tilt_provenance_capability=_RUNTIME_VQF_TILT_PROVENANCE_CAPABILITY,
+    )

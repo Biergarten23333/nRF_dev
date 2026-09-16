@@ -124,6 +124,110 @@ class FootContactEvidence:
         return self.resolved_support_state is FootSupportState.STANCE_CONFIRMED
 
 
+def causal_root_at_ankle_sample(
+    state: RootState, query_time_s: float, *, maximum_age_s: float,
+) -> tuple[np.ndarray | None, float]:
+    """Propagate the last causal root state without mutating its owner."""
+
+    age_s = float(query_time_s - state.time_s)
+    if (
+        not math.isfinite(age_s)
+        or age_s < -1e-12
+        or age_s > maximum_age_s + 1e-12
+    ):
+        return None, age_s
+    return state.position_m + age_s * state.velocity_mps, age_s
+
+
+def positive_swing_cue(
+    *, side: str, query_time_s: float,
+    analytic_ankle_offset_world_m: Mapping[str, np.ndarray],
+    root_state: RootState, foothold_corrector: "DualFootFootholdCorrector",
+    evidence: Mapping[str, FootContactEvidence], maximum_root_age_s: float,
+    positive_swing_height_m: float,
+) -> dict[str, object]:
+    """Return the causal, explicitly owned height cue for confirmed swing."""
+
+    footholds = foothold_corrector.footholds_world_m()
+    if side in footholds:
+        root, age_s = causal_root_at_ankle_sample(
+            root_state, query_time_s, maximum_age_s=maximum_root_age_s
+        )
+        if root is None:
+            return {
+                "observable": False, "positive": False, "height_m": math.nan,
+                "owner": "OWNED_FOOTHOLD_ROOT_TIME_UNOBSERVABLE",
+                "root_owner_age_s": age_s,
+            }
+        height_m = float(
+            root[2] + analytic_ankle_offset_world_m[side][2]
+            - footholds[side][2]
+        )
+        return {
+            "observable": True,
+            "positive": height_m >= positive_swing_height_m,
+            "height_m": height_m,
+            "owner": "OWNED_FOOTHOLD_WORLD_Z",
+            "root_owner_age_s": age_s,
+        }
+    other = "right" if side == "left" else "left"
+    if evidence[other].is_confirmed_stance:
+        height_m = float(
+            analytic_ankle_offset_world_m[side][2]
+            - analytic_ankle_offset_world_m[other][2]
+        )
+        return {
+            "observable": True,
+            "positive": height_m >= positive_swing_height_m,
+            "height_m": height_m,
+            "owner": "OPPOSITE_CONFIRMED_STANCE_RELATIVE_HEIGHT",
+            "root_owner_age_s": math.nan,
+        }
+    return {
+        "observable": False, "positive": False, "height_m": math.nan,
+        "owner": "UNOBSERVABLE", "root_owner_age_s": math.nan,
+    }
+
+
+def positive_swing_cues(
+    *, query_time_s: float,
+    analytic_ankle_offset_world_m: Mapping[str, np.ndarray],
+    root_state: RootState, foothold_corrector: "DualFootFootholdCorrector",
+    evidence: Mapping[str, FootContactEvidence], maximum_root_age_s: float,
+    positive_swing_height_m: float,
+) -> dict[str, dict[str, object]]:
+    """Atomically compute bilateral raw lift cues without an activity prior."""
+
+    cues = {
+        side: positive_swing_cue(
+            side=side, query_time_s=query_time_s,
+            analytic_ankle_offset_world_m=analytic_ankle_offset_world_m,
+            root_state=root_state, foothold_corrector=foothold_corrector,
+            evidence=evidence, maximum_root_age_s=maximum_root_age_s,
+            positive_swing_height_m=positive_swing_height_m,
+        )
+        for side in SIDES
+    }
+    positive_sides = tuple(side for side in SIDES if cues[side]["positive"])
+    classification = {
+        (): "NONE", ("left",): "UNILATERAL_LEFT",
+        ("right",): "UNILATERAL_RIGHT", SIDES: "BILATERAL",
+    }[positive_sides]
+    observed_lift_m = {
+        side: (float(cues[side]["height_m"])
+               if math.isfinite(float(cues[side]["height_m"])) else None)
+        for side in SIDES
+    }
+    return {
+        side: {
+            **cue, "positive_lift_classification": classification,
+            "positive_lift_sides": positive_sides,
+            "observed_lift_m": observed_lift_m,
+        }
+        for side, cue in cues.items()
+    }
+
+
 def _rolling_features(
     acceleration_mps2: np.ndarray,
     gyro_rad_s: np.ndarray,
@@ -551,6 +655,9 @@ class DualFootFootholdCorrector:
         self._released_ownership: list[FootholdOwnership] = []
         self._primary_side: str | None = None
         self._prior_held_support_confidence: dict[str, float] = {}
+        self._last_support_state = {
+            side: FootSupportState.UNOBSERVABLE for side in SIDES
+        }
 
     def footholds_world_m(self) -> dict[str, np.ndarray]:
         """Return a read-only snapshot of active episode-owned footholds."""
@@ -1021,6 +1128,36 @@ class DualFootFootholdCorrector:
             if offset.shape != (3,) or velocity.shape != (3,):
                 raise ValueError("foothold correction requires 3-vector FK proxies")
             support = evidence[side].resolved_support_state
+            previous_support = self._last_support_state[side]
+            recovered_stance = (
+                support is FootSupportState.STANCE_CONFIRMED
+                and previous_support is not FootSupportState.STANCE_CONFIRMED
+            )
+            was_prior_held = side in self._prior_held_support_confidence
+            if (
+                recovered_stance
+                and side in self._footholds
+                and not was_prior_held
+            ):
+                residual = float(np.linalg.norm(
+                    (state.position_m + offset - self._footholds[side])[
+                        list(self.config.constrained_axes)
+                    ]
+                ))
+                if (
+                    residual
+                    > self.config.maximum_bilateral_root_target_disagreement_m
+                ):
+                    self._released_ownership.append(FootholdOwnership(
+                        side,
+                        self._foothold_starts_s[side],
+                        float(state.time_s),
+                        self._footholds[side].copy(),
+                    ))
+                    self._footholds[side] = state.position_m + offset
+                    self._foothold_starts_s[side] = float(state.time_s)
+                    released.append(side)
+                    entered.append(side)
             if (
                 support is FootSupportState.STANCE_CONFIRMED
                 and side not in self._footholds
@@ -1075,6 +1212,7 @@ class DualFootFootholdCorrector:
                     )
             elif not evidence[side].prior_held:
                 self._prior_held_support_confidence.pop(side, None)
+            self._last_support_state[side] = support
 
         active = tuple(side for side in SIDES if side in self._footholds)
         zero = np.zeros(3)

@@ -110,6 +110,35 @@ def outward_facing_reliability(score: float) -> float:
     return 0.5 + 0.25 * value
 
 
+def outward_facing_information_weights(
+    tag_position_world_m: np.ndarray,
+    anchor_positions_world_m: np.ndarray,
+    outward_normal_world_vector: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Apply the existing wearing/back prior to eight links, without ray occlusion.
+
+    This is only the antenna-facing policy. It includes neither the later
+    torso-ray multiplier nor other-limb occlusion and consumes no range values.
+    """
+    anchors = np.asarray(anchor_positions_world_m, dtype=float)
+    if anchors.shape != (8, 3) or not np.isfinite(anchors).all():
+        raise ValueError('antenna weighting needs eight finite anchor positions')
+    scores = np.asarray([outward_facing_score(tag_position_world_m, anchor,
+        outward_normal_world_vector) for anchor in anchors])
+    weights = np.asarray([outward_facing_reliability(score) for score in scores])
+    return scores, weights
+
+
+def hard_back_facing_mask(valid_mask: int, facing_scores: np.ndarray) -> int:
+    """Clear strictly back-facing links; the tangent/front hemisphere is kept."""
+    scores=np.asarray(facing_scores,dtype=float)
+    if scores.shape!=(8,) or not np.isfinite(scores).all() or np.any(np.abs(scores)>1):
+        raise ValueError('hard antenna cut needs eight finite cosine scores')
+    if not isinstance(valid_mask,(int,np.integer)) or not 0<=valid_mask<=255:
+        raise ValueError('raw valid mask must contain eight bits')
+    return int(valid_mask) & sum(1<<i for i in range(8) if scores[i]>=0)
+
+
 def select_best_geometry(
     valid_anchors: Iterable[int],
     scores: dict[int, float],

@@ -124,6 +124,7 @@ def run(
     source: Path = DEFAULT_SOURCE,
     pose_source: Path | None = None,
     source_trajectory: Path | None = None,
+    apply_floor_gauge: bool = True,
 ) -> dict:
     if action not in SUPPORTED_ACTIONS:
         raise ValueError(f"unsupported action: {action}")
@@ -179,6 +180,9 @@ def run(
             )
             correction_source = "LEGACY_UWB_EPOCH_CORRECTION"
         if "adaptive_node_order" in archive:
+            adaptive_time_s = np.asarray(
+                archive["shared_root_time_s"], dtype=float
+            )
             adaptive_node_order = tuple(
                 str(value) for value in archive["adaptive_node_order"]
             )
@@ -187,6 +191,7 @@ def run(
             )
             adaptive_mode = np.asarray(archive["adaptive_mode"], dtype=str)
         else:
+            adaptive_time_s = correction_time_s
             adaptive_node_order = tuple(NODE_TO_PROXY_POINT)
             adaptive_node_trusted = np.ones(
                 (len(correction_time_s), len(adaptive_node_order)), dtype=bool
@@ -208,6 +213,20 @@ def run(
             contact_confidence = np.zeros((len(time_s), 2), dtype=float)
     viewer_time = np.asarray(episode["time"], dtype=float)
     query = viewer_time - bootstrap_offset_s
+    # A bounded diagnostic run may intentionally cover only the beginning of
+    # the source action.  Do not clamp the remaining pose frames to the last
+    # fusion state and accidentally present them as additional fused output.
+    in_fusion_window = query <= time_s[-1] + 1e-9
+    if not np.all(in_fusion_window):
+        valid_rows = np.flatnonzero(in_fusion_window)
+        if len(valid_rows) < 2:
+            raise RuntimeError("fusion result does not overlap the viewer action")
+        viewer_stop = int(valid_rows[-1]) + 1
+        for key in ("time", "sourceFrame", "frames"):
+            episode[key] = episode[key][:viewer_stop]
+        local_frames = local_frames[:viewer_stop]
+        viewer_time = viewer_time[:viewer_stop]
+        query = query[:viewer_stop]
     interpolate = lambda values: np.column_stack([
         np.interp(query, time_s, values[:, axis]) for axis in range(3)
     ])
@@ -260,7 +279,7 @@ def run(
         if (
             len(native_time) < 2
             or not np.all(np.diff(native_time) > 0.0)
-            or abs(float(native_relative[-1] - viewer_relative[-1])) > 0.02
+            or float(viewer_relative[-1]) > float(native_relative[-1]) + 0.02
         ):
             raise ValueError("source trajectory does not match viewer pose time grid")
         native_frame_for_viewer = np.searchsorted(
@@ -284,7 +303,7 @@ def run(
                 correction_time_s,
                 segment_correction[:, segment_index, axis],
             )
-    if articulated_enabled:
+    if articulated_enabled or native_base_rotations is not None:
         source_frames = np.asarray(episode["sourceFrame"], dtype=int)
         source_lo = int(source_frames[0])
         source_span = max(1, int(source_frames[-1]) - source_lo)
@@ -337,14 +356,22 @@ def run(
     supported_rows = np.flatnonzero(
         np.any(contact_constrained[contact_indices_for_viewer], axis=1)
     )
-    if not len(supported_rows):
+    if not len(supported_rows) and apply_floor_gauge:
         raise RuntimeError("no inferred support window available for floor gauge")
-    gauge_rows = supported_rows[
-        supported_rows < supported_rows[0] + max(1, int(round(0.20 / np.median(np.diff(viewer_time)))))
-    ]
-    support_shift_z = -float(np.median(
-        fused_output[gauge_rows, 2] + lower_ankle_z[gauge_rows]
-    ))
+    if apply_floor_gauge:
+        gauge_rows = supported_rows[
+            supported_rows < supported_rows[0] + max(
+                1, int(round(0.20 / np.median(np.diff(viewer_time))))
+            )
+        ]
+        support_shift_z = -float(np.median(
+            fused_output[gauge_rows, 2] + lower_ankle_z[gauge_rows]
+        ))
+        floor_gauge = "ONE_CONSTANT_Z_SHIFT_FROM_FIRST_SUPPORT_WINDOW"
+    else:
+        gauge_rows = np.empty(0, dtype=int)
+        support_shift_z = 0.0
+        floor_gauge = "NONE_NATIVE_UWB_WORLD_Z"
     fused_output[:, 2] += support_shift_z
     supported_ankle_z = fused_output[:, 2] + lower_ankle_z
     fused_output_high_rate[:, 2] += support_shift_z
@@ -427,9 +454,9 @@ def run(
     episode["uwbTagProxyNodeNames"] = list(node_names)
     episode["uwbTagProxyPositions"] = np.round(tag_proxy_output, 4).tolist()
     trust_indices = np.clip(
-        np.searchsorted(correction_time_s, query, side="right") - 1,
+        np.searchsorted(adaptive_time_s, query, side="right") - 1,
         0,
-        len(correction_time_s) - 1,
+        len(adaptive_time_s) - 1,
     )
     trust_column = {node: index for index, node in enumerate(adaptive_node_order)}
     if set(trust_column) != set(node_names):
@@ -468,7 +495,7 @@ def run(
         "relative_joint_geometry_modified": articulated_enabled,
         "translation_source": "causal_shared_root_uwb_plus_pelvis_imu",
         "vertical_support_constraint": "CAUSAL_IN_FILTER_INFERRED_ANKLE_FOOTHOLD",
-        "display_floor_gauge": "ONE_CONSTANT_Z_SHIFT_FROM_FIRST_SUPPORT_WINDOW",
+        "display_floor_gauge": floor_gauge,
         "vertical_support_constraint_scope": "INFERRED_CONTACT_EPISODES_ONLY",
         "vertical_support_constraint_is_per_joint_pose_fit": False,
         "vertical_support_constraint_application": "FUSION_STATE_NOT_RENDERER_PINNING",
@@ -523,8 +550,10 @@ def run(
             "total_viewer_frames": len(source_frames),
             "ground_plane_output_z_m": 0.0,
             "display_floor_gauge_shift_z_m": support_shift_z,
-            "first_support_window_max_abs_ankle_height_m": float(
-                np.max(np.abs(supported_ankle_z[gauge_rows]))
+            "first_support_window_max_abs_ankle_height_m": (
+                None if not len(gauge_rows) else float(
+                    np.max(np.abs(supported_ankle_z[gauge_rows]))
+                )
             ),
         },
         "scientific_position_pass": False,
@@ -724,10 +753,12 @@ def run(
             np.linalg.norm(correction_viewer, axis=2)
         )),
         "support_constraint": "CAUSAL_IN_FILTER_INFERRED_ANKLE_FOOTHOLD",
-        "display_floor_gauge": "ONE_CONSTANT_Z_SHIFT_FROM_FIRST_SUPPORT_WINDOW",
+        "display_floor_gauge": floor_gauge,
         "display_floor_gauge_shift_z_m": support_shift_z,
-        "first_support_window_max_abs_ankle_height_m": float(
-            np.max(np.abs(supported_ankle_z[gauge_rows]))
+        "first_support_window_max_abs_ankle_height_m": (
+            None if not len(gauge_rows) else float(
+                np.max(np.abs(supported_ankle_z[gauge_rows]))
+            )
         ),
         "final_displayed_articulated_ankle_constrained_drift": (
             final_displayed_ankle_drift
@@ -751,6 +782,11 @@ def main() -> None:
     parser.add_argument("--source", type=Path, default=DEFAULT_SOURCE)
     parser.add_argument("--pose-source", type=Path)
     parser.add_argument("--source-trajectory", type=Path)
+    parser.add_argument(
+        "--no-floor-gauge",
+        action="store_true",
+        help="preserve native UWB-world Z when no contact-derived floor is intended",
+    )
     args = parser.parse_args()
     print(json.dumps(run(
         args.output.resolve(),
@@ -765,6 +801,7 @@ def main() -> None:
             None if args.source_trajectory is None
             else args.source_trajectory.resolve()
         ),
+        apply_floor_gauge=not args.no_floor_gauge,
     ), indent=2))
 
 

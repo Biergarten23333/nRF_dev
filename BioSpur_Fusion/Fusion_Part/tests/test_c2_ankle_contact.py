@@ -9,6 +9,7 @@ from biospur_fusion.c2_uwb_root_world.ankle_contact import (
     FootStillnessProfile,
     FootSupportState,
     fit_stillness_profiles,
+    positive_swing_cues,
 )
 from biospur_fusion.root_r3.estimator import (
     CausalDelayedRootFilter,
@@ -35,6 +36,60 @@ def _evidence(side, contact, confidence=0.9):
 
 def _profile():
     return FootStillnessProfile(0.1, 0.1)
+
+
+def test_public_bilateral_swing_cue_owner_is_order_invariant():
+    corrector = DualFootFootholdCorrector()
+    state = _state(position=(0., 0., 1.), velocity=(0., 0., 0.))
+    evidence = {side: _support_evidence(side, FootSupportState.STANCE_CONFIRMED)
+                for side in ("left", "right")}
+    offsets = {"left": np.array([-.1,0.,-1.]), "right": np.array([.1,0.,-1.])}
+    corrector.update(state,evidence=evidence,ankle_offset_world_m=offsets,
+                     ankle_offset_velocity_world_mps={side:np.zeros(3) for side in offsets})
+    raised = RootState(1.005,np.r_[[0.,0.,1.08],np.zeros(6)],np.eye(9)*.1)
+    first = positive_swing_cues(query_time_s=1.005,
+        analytic_ankle_offset_world_m=offsets,root_state=raised,
+        foothold_corrector=corrector,evidence=evidence,maximum_root_age_s=.0075,
+        positive_swing_height_m=.075)
+    second = positive_swing_cues(query_time_s=1.005,
+        analytic_ankle_offset_world_m=dict(reversed(tuple(offsets.items()))),
+        root_state=raised,foothold_corrector=corrector,evidence=dict(reversed(tuple(evidence.items()))),
+        maximum_root_age_s=.0075,positive_swing_height_m=.075)
+    assert first==second and all(first[side]["positive"] for side in first)
+
+
+def test_public_swing_cue_exact_legacy_owner_branches():
+    covariance=np.eye(9)*.1
+    state=RootState(1.,np.r_[[0.,0.,1.],np.zeros(6)],covariance)
+    offsets={"left":np.array([-.1,0.,-1.]),"right":np.array([.1,0.,-1.])}
+    zero={side:np.zeros(3) for side in offsets}
+    confirmed={side:_support_evidence(side,FootSupportState.STANCE_CONFIRMED)
+               for side in offsets}
+    owned=DualFootFootholdCorrector(); owned.update(
+        state,evidence=confirmed,ankle_offset_world_m=offsets,
+        ankle_offset_velocity_world_mps=zero)
+    raised=RootState(1.005,np.r_[[0.,0.,1.08],np.zeros(6)],covariance)
+    cue=positive_swing_cues(query_time_s=1.005,analytic_ankle_offset_world_m=offsets,
+        root_state=raised,foothold_corrector=owned,evidence=confirmed,
+        maximum_root_age_s=.0075,positive_swing_height_m=.075)
+    assert cue["left"]["owner"]==cue["right"]["owner"]=="OWNED_FOOTHOLD_WORLD_Z"
+    stale=positive_swing_cues(query_time_s=1.02,analytic_ankle_offset_world_m=offsets,
+        root_state=state,foothold_corrector=owned,evidence=confirmed,
+        maximum_root_age_s=.0075,positive_swing_height_m=.075)
+    assert stale["left"]["owner"]==stale["right"]["owner"]=="OWNED_FOOTHOLD_ROOT_TIME_UNOBSERVABLE"
+    fresh=DualFootFootholdCorrector()
+    opposite={"left":_support_evidence("left",FootSupportState.SWING_CONFIRMED),
+              "right":confirmed["right"]}
+    asymmetric={"left":np.array([-.1,0.,-.8]),"right":offsets["right"]}
+    relative=positive_swing_cues(query_time_s=1.,analytic_ankle_offset_world_m=asymmetric,
+        root_state=state,foothold_corrector=fresh,evidence=opposite,
+        maximum_root_age_s=.0075,positive_swing_height_m=.075)
+    assert relative["left"]["owner"]=="OPPOSITE_CONFIRMED_STANCE_RELATIVE_HEIGHT"
+    neither={side:_support_evidence(side,FootSupportState.UNOBSERVABLE) for side in offsets}
+    unobservable=positive_swing_cues(query_time_s=1.,analytic_ankle_offset_world_m=offsets,
+        root_state=state,foothold_corrector=fresh,evidence=neither,
+        maximum_root_age_s=.0075,positive_swing_height_m=.075)
+    assert unobservable["left"]["owner"]==unobservable["right"]["owner"]=="UNOBSERVABLE"
 
 
 def _support_evidence(
@@ -343,7 +398,7 @@ def test_dual_foothold_persists_world_point_and_releases_independently():
     assert corrected.position_m[2] == moved.position_m[2]
 
 
-def test_uncertain_retains_identity_without_constraint_and_recovers_no_reanchor():
+def test_uncertain_retains_coherent_identity_and_recovers_without_reanchor():
     corrector = DualFootFootholdCorrector()
     offsets = {
         "left": np.array([-0.1, 0.0, -0.9]),
@@ -368,7 +423,7 @@ def test_uncertain_retains_identity_without_constraint_and_recovers_no_reanchor(
 
     moved = RootState(
         1.1,
-        state.vector + np.r_[[0.2, 0.0, 0.0], np.zeros(6)],
+        state.vector + np.r_[[0.02, 0.0, 0.0], np.zeros(6)],
         state.covariance,
     )
     unchanged, uncertain = corrector.update(
@@ -412,6 +467,67 @@ def test_uncertain_retains_identity_without_constraint_and_recovers_no_reanchor(
         corrector.footholds_world_m()["left"], original
     )
 
+
+def test_dynamic_recovery_reanchors_a_spatially_stale_foothold():
+    corrector = DualFootFootholdCorrector()
+    offsets = {
+        "left": np.array([-0.1, 0.0, -0.9]),
+        "right": np.array([0.1, 0.0, -0.9]),
+    }
+    velocities = {side: np.zeros(3) for side in offsets}
+    state, _ = corrector.update(
+        _state(),
+        evidence={
+            "left": _support_evidence(
+                "left", FootSupportState.STANCE_CONFIRMED
+            ),
+            "right": _support_evidence(
+                "right", FootSupportState.SWING_CONFIRMED
+            ),
+        },
+        ankle_offset_world_m=offsets,
+        ankle_offset_velocity_world_mps=velocities,
+    )
+    original = corrector.footholds_world_m()["left"].copy()
+    moved = RootState(
+        1.1,
+        state.vector + np.r_[[0.2, 0.0, 0.0], np.zeros(6)],
+        state.covariance,
+    )
+    corrector.update(
+        moved,
+        evidence={
+            "left": _support_evidence(
+                "left", FootSupportState.UNCERTAIN, confidence=0.1
+            ),
+            "right": _support_evidence(
+                "right", FootSupportState.SWING_CONFIRMED
+            ),
+        },
+        ankle_offset_world_m=offsets,
+        ankle_offset_velocity_world_mps=velocities,
+    )
+    recovered, decision = corrector.update(
+        moved,
+        evidence={
+            "left": _support_evidence(
+                "left", FootSupportState.STANCE_CONFIRMED
+            ),
+            "right": _support_evidence(
+                "right", FootSupportState.SWING_CONFIRMED
+            ),
+        },
+        ankle_offset_world_m=offsets,
+        ankle_offset_velocity_world_mps=velocities,
+    )
+
+    assert decision.released_sides == decision.entered_sides == ("left",)
+    np.testing.assert_array_equal(recovered.position_m, moved.position_m)
+    assert not np.array_equal(corrector.footholds_world_m()["left"], original)
+    np.testing.assert_allclose(
+        corrector.footholds_world_m()["left"],
+        moved.position_m + offsets["left"],
+    )
 
 def test_prior_held_uncertain_constrains_but_is_not_confirmed_stance():
     corrector = DualFootFootholdCorrector()

@@ -5,6 +5,7 @@ from biospur_fusion.root_r3.estimator import (
     AuthoritativeBaselineReconstructionError,
     CausalDelayedRootFilter,
     RootFilterConfig,
+    RootTranslationEdgeMode,
     _propagate_edge_piece,
     propagate_inertial,
     update_position,
@@ -28,6 +29,58 @@ def observation(position, *, measurement=0.0, available=0.0, covariance=1.0, fra
     return PositionObservation(measurement, available, np.asarray(position, float),
                                np.eye(3) * covariance, tag, (0, 1, 2, 3),
                                frame_valid=frame)
+
+
+def _root_owner_fingerprint(filt):
+    token = filt.publication_token()
+    return (
+        token.revision,
+        token.digest,
+        token.state.vector.tobytes(),
+        token.state.covariance.tobytes(),
+        filt.health_snapshot(),
+        filt.mode,
+        filt.future_imu_count,
+        filt.future_uwb_count,
+        filt.preavailability_output_count,
+        filt.late_imu_rejected,
+    )
+
+
+def test_initial_following_mode_bind_is_observable_one_shot_and_pristine_only():
+    same_mode = CausalDelayedRootFilter(state())
+    initial_digest = same_mode.publication_token().digest
+    same_mode.bind_pristine_following_input_mode(RootTranslationEdgeMode.INERTIAL)
+    assert same_mode.publication_token().revision == 1
+    assert same_mode.publication_token().digest != initial_digest
+    before_replay = _root_owner_fingerprint(same_mode)
+    with pytest.raises(RuntimeError, match="no longer bindable"):
+        same_mode.bind_pristine_following_input_mode(RootTranslationEdgeMode.INERTIAL)
+    assert _root_owner_fingerprint(same_mode) == before_replay
+
+    differing_mode = CausalDelayedRootFilter(state())
+    differing_mode.bind_pristine_following_input_mode(
+        RootTranslationEdgeMode.CV_NO_ACCELERATION,
+    )
+    assert differing_mode.publication_token().revision == 1
+    assert differing_mode._following_input_mode is RootTranslationEdgeMode.CV_NO_ACCELERATION
+    before_second = _root_owner_fingerprint(differing_mode)
+    with pytest.raises(RuntimeError, match="no longer bindable"):
+        differing_mode.bind_pristine_following_input_mode(
+            RootTranslationEdgeMode.CV_NO_ACCELERATION,
+        )
+    assert _root_owner_fingerprint(differing_mode) == before_second
+
+    nonpristine = CausalDelayedRootFilter(state())
+    assert nonpristine.add_imu(ImuSample(
+        0.005, 0.005, np.array([0.0, 0.0, 9.80665]), np.eye(3), 1,
+    ))
+    before_nonpristine = _root_owner_fingerprint(nonpristine)
+    with pytest.raises(RuntimeError, match="no longer bindable"):
+        nonpristine.bind_pristine_following_input_mode(
+            RootTranslationEdgeMode.INERTIAL,
+        )
+    assert _root_owner_fingerprint(nonpristine) == before_nonpristine
 
 
 def test_stationary_specific_force_does_not_translate():
@@ -441,6 +494,46 @@ def _journaled_constant_velocity_filter():
     return filt
 
 
+def _large_covariance_virtual_split_filter():
+    config = RootFilterConfig(
+        maximum_position_influence_m=0.05,
+        nis_limit_3d=1e12,
+        fixed_lag_s=1.0,
+        recovery_good_events=1,
+    )
+    filt = CausalDelayedRootFilter(
+        state(covariance_scale=1e7), config, inertial=False
+    )
+    for sequence, time_s in enumerate((0.1, 0.2, 0.3), start=1):
+        assert filt.add_imu(ImuSample(
+            time_s,
+            time_s,
+            np.array([0.0, 0.0, 9.80665]),
+            np.eye(3),
+            sequence,
+        ))
+    return filt
+
+
+def _inject_baseline_covariance_ulps(filt, monkeypatch, *, ulps):
+    original_replay = filt._replay_from
+    observed = {}
+
+    def replay_with_roundoff(*args, **kwargs):
+        replayed, rebuilt = original_replay(*args, **kwargs)
+        covariance = replayed.covariance.copy()
+        target = float(filt.current_state.covariance[0, 0])
+        shifted = target
+        for _ in range(ulps):
+            shifted = float(np.nextafter(shifted, np.inf))
+        covariance[0, 0] = shifted
+        observed["absolute_delta"] = abs(shifted - target)
+        return RootState(replayed.time_s, replayed.vector.copy(), covariance), rebuilt
+
+    monkeypatch.setattr(filt, "_replay_from", replay_with_roundoff)
+    return observed
+
+
 def test_nonzero_delayed_update_replays_contact_and_caps_attributable_effect():
     filt = _journaled_constant_velocity_filter()
     before = filt.current_state
@@ -493,6 +586,55 @@ def test_authoritative_baseline_replay_matches_current_state():
         filt.current_state.covariance,
         rtol=0.0,
         atol=2e-9,
+    )
+
+
+def test_large_covariance_virtual_split_accepts_32_ulp_roundoff(monkeypatch):
+    filt = _large_covariance_virtual_split_filter()
+    observed = _inject_baseline_covariance_ulps(
+        filt, monkeypatch, ulps=16
+    )
+
+    decision = filt.add_position(PositionObservation(
+        0.15,
+        0.3,
+        np.zeros(3),
+        np.eye(3),
+        "T",
+        (0, 1, 2, 3),
+        quality_state="REJECT_CONTACT_MANIFOLD_CONFLICT",
+    ), processing_time_s=0.3)
+
+    assert observed["absolute_delta"] > 2e-9
+    assert not decision.accepted
+    assert decision.reason == "REJECT_CONTACT_MANIFOLD_CONFLICT"
+
+
+def test_covariance_divergence_beyond_32_ulp_allowance_fails(monkeypatch):
+    filt = _large_covariance_virtual_split_filter()
+    observed = _inject_baseline_covariance_ulps(
+        filt, monkeypatch, ulps=64
+    )
+
+    with pytest.raises(AuthoritativeBaselineReconstructionError) as captured:
+        filt.add_position(PositionObservation(
+            0.15,
+            0.3,
+            np.zeros(3),
+            np.eye(3),
+            "T",
+            (0, 1, 2, 3),
+            quality_state="REJECT_CONTACT_MANIFOLD_CONFLICT",
+        ), processing_time_s=0.3)
+
+    assert observed["absolute_delta"] > 2e-9
+    diagnostic = captured.value.diagnostic
+    assert diagnostic["covariance_max_abs_scale"] >= 1e7
+    assert (
+        diagnostic[
+            "replayed_minus_current_covariance_max_normalized_ulp_excess"
+        ]
+        > 1.0
     )
 
 

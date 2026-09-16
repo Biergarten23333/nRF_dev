@@ -7,6 +7,7 @@ from typing import Mapping
 import numpy as np
 
 from .q1 import FrameBinding, MotionVetoGate, Q1Parameters, Q1T4ESKF
+from .profiles import ImuSensorProfile, profile_for_node
 
 G = 9.80665
 
@@ -34,13 +35,17 @@ class ImuFrontendAudit:
 
 def run_q1_attitude(imu: np.ndarray, *, node_id: str, initial_start_ns: int, initial_end_ns: int,
                     analysis_end_ns: int, decimation: int = 4,
-                    max_gap_s: float | None = None) -> tuple[np.ndarray, ImuFrontendAudit]:
+                    max_gap_s: float | None = None,
+                    sensor_profile: ImuSensorProfile | None = None,
+                    sensor_to_output: np.ndarray | None = None) -> tuple[np.ndarray, ImuFrontendAudit]:
     valid = (imu["status"] == 1) & (imu["global_time_ns"] <= analysis_end_ns)
     initial = valid & (imu["global_time_ns"] >= initial_start_ns) & (imu["global_time_ns"] <= initial_end_ns)
     if int(initial.sum()) < 200:
         raise ValueError(f"{node_id}: token-labelled initial-still has insufficient IMU samples")
-    accel = imu["acc_raw"].astype(float) / 2048.0 * G
-    gyro = np.deg2rad(imu["gyro_raw"].astype(float) / 16.384)
+    profile = profile_for_node(node_id) if sensor_profile is None else sensor_profile
+    accel, gyro = profile.raw_to_si(
+        imu["acc_raw"], imu["gyro_raw"], sensor_to_output=sensor_to_output,
+    )
     binding = FrameBinding(
         provenance="TOKEN_LABELLED_INITIAL_STILL_ATTITUDE_ONLY",
         yaw_gauge="ARBITRARY_ZERO_WITH_PI_UNCERTAINTY",

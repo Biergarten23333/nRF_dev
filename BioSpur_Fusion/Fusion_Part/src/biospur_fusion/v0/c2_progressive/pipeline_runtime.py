@@ -6,8 +6,10 @@ from copy import deepcopy
 from dataclasses import fields, is_dataclass, replace
 from enum import Enum
 from hashlib import sha256
+from importlib.metadata import version as package_version
 import json
 from pathlib import Path
+import stat
 from types import MappingProxyType
 from typing import Any, Iterator, Mapping, Sequence
 from uuid import uuid4
@@ -35,7 +37,12 @@ from .functional_geometry import (
 )
 from .geometry_posterior import ProgressiveFunctionalGeometryOwner
 from .heading import HeadingSpanResult, HeadingTrajectoryResult, PersistentHeadingOwner
-from .orientation import ContinuousVQFState, OrientedAction
+from .orientation import (
+    ContinuousVQFState,
+    OrientedAction,
+    VQFTiltDiagnosticProvenance,
+    _RUNTIME_VQF_TILT_PROVENANCE_CAPABILITY,
+)
 from .orientation_uncertainty import (
     cumulative_observed_orientation_terms,
     physical_orientation_covariance,
@@ -63,6 +70,95 @@ P1_R3_IMAGE_SHA256_BY_NAME = {
     "P1_BIAS_AND_DRIFT_R3.png": "fa733c3aa29679c316992ef56a7872a0d8c9af72d582d831cce5dd7693df99c1",
     "P1_SENSOR_SEGMENT_FRAME_DIAGNOSTIC_R3.png": "495c1a080b5e98525b893033c0c27d2492fb63e53e6725c182dfb743be2c60ff",
 }
+
+
+def _runtime_vqf_tilt_authority(
+    *, seal_authority: Mapping[str, Any], settings: Mapping[str, Any],
+    initial_semantic_sha256: str, settings_semantic_sha256: str,
+    initial_file_binding: Mapping[str, Any] | None = None,
+) -> tuple[Mapping[str, Any], object]:
+    """Runtime-private issuer input after the caller has validated the seal."""
+    relative = str(settings["execution_contract"].get(
+        "initial_stochastic_state_relative_path", "",
+    ))
+    sources = seal_authority["qualified_source_hashes"]
+    source_sha = sources.get(relative)
+    if initial_file_binding is not None:
+        if source_sha is not None:
+            raise ValueError("initial state cannot have two source ownership paths")
+        source_sha = str(initial_file_binding["sha256"])
+        source_status = "SEALED_SETTINGS_PATH_AND_SEMANTIC_BOUND"
+    else:
+        source_status = (
+            "SEAL_OWNED" if source_sha is not None
+            else "MISSING_FROM_QUALIFIED_SOURCE_CLOSURE"
+        )
+    return ({
+        "prefit_seal_sha256": str(seal_authority["seal_sha256"]),
+        "qualified_source_closure_digest": _json_semantic_sha256(dict(sources)),
+        "initial_stochastic_state_semantic_sha256": initial_semantic_sha256,
+        "initial_stochastic_state_source_status": source_status,
+        "initial_stochastic_state_source_sha256": source_sha,
+        "initial_stochastic_state_source_relative_path": (
+            None if initial_file_binding is None else str(initial_file_binding["relative_path"])
+        ),
+        "initial_stochastic_state_source_size": (
+            None if initial_file_binding is None else int(initial_file_binding["size"])
+        ),
+        "initial_stochastic_state_source_mtime_ns": (
+            None if initial_file_binding is None else int(initial_file_binding["mtime_ns"])
+        ),
+        "settings_semantic_sha256": settings_semantic_sha256,
+        "timer_domain": "B306_TIMER2_US_NODE_LOCAL",
+        "vqf_version": package_version("vqf"),
+    }, _RUNTIME_VQF_TILT_PROVENANCE_CAPABILITY)
+
+
+def _validated_settings_initial_state_binding(
+    settings: Mapping[str, Any], initial_state: Mapping[str, Any], semantic_sha256: str,
+) -> Mapping[str, Any] | None:
+    """Bind a settings-owned initial-state file absent from source closure."""
+    contract = settings["execution_contract"]
+    relative_text = str(contract["initial_stochastic_state_relative_path"])
+    if not relative_text:
+        return None
+    workspace = Path(str(contract["canonical_workspace"])).resolve(strict=True)
+    relative = Path(relative_text)
+    if relative.is_absolute():
+        raise ValueError("initial state settings path must be workspace-relative")
+    lexical = workspace / relative
+    resolved = lexical.resolve(strict=True)
+    try:
+        resolved.relative_to(workspace)
+    except ValueError as exc:
+        raise ValueError("initial state settings path leaves canonical workspace") from exc
+    if resolved != lexical.absolute() or lexical.is_symlink():
+        raise ValueError("initial state settings path cannot use symlink substitution")
+    before = resolved.stat()
+    if not stat.S_ISREG(before.st_mode):
+        raise ValueError("initial state settings path is not a regular file")
+    raw = resolved.read_bytes()
+    after = resolved.stat()
+    if (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns) != (
+        after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns,
+    ):
+        raise ValueError("initial state file changed during provenance validation")
+    parsed = json.loads(raw.decode("utf-8"))
+    parsed_semantic = sha256(json.dumps(
+        C2PipelineRuntime._canonical_state(parsed), sort_keys=True, separators=(",", ":"),
+    ).encode("utf-8")).hexdigest()
+    passed_semantic = sha256(json.dumps(
+        C2PipelineRuntime._canonical_state(initial_state), sort_keys=True, separators=(",", ":"),
+    ).encode("utf-8")).hexdigest()
+    expected = str(contract["initial_stochastic_state_semantic_sha256"])
+    if parsed_semantic != passed_semantic or parsed_semantic != semantic_sha256 or expected != semantic_sha256:
+        raise ValueError("settings-owned initial state file/payload/semantic authority differs")
+    return MappingProxyType({
+        "relative_path": relative.as_posix(),
+        "sha256": sha256(raw).hexdigest(),
+        "size": before.st_size,
+        "mtime_ns": before.st_mtime_ns,
+    })
 
 
 def _deep_freeze(value: Any) -> Any:
@@ -117,8 +213,53 @@ def _owner_authenticated_orientation_replay_arrays(
     )
     if any(node_set != set(nodes) for node_set in required_node_sets):
         raise RuntimeError("orientation replay export node ownership is incomplete")
-    prefix = f"orientation/{oriented.chronological_index:02d}"
+    diagnostic_maps = (
+        oriented.imu_sample_sequence_by_node,
+        oriented.raw_start_offset_by_node,
+        oriented.raw_end_offset_by_node,
+        oriented.raw_sample_index_by_node,
+        oriented.vqf_residual_bias_sigma_rad_s_by_node,
+        oriented.vqf_rest_detected_by_node,
+        oriented.vqf_relative_rest_deviation_by_node,
+        oriented.acceleration_norm_residual_mps2_by_node,
+        oriented.world_tilt_innovation_rad_by_node,
+    )
     arrays: dict[str, np.ndarray] = {}
+    diagnostic_present = any(bool(value) for value in diagnostic_maps)
+    if diagnostic_present and any(set(value) != set(nodes) for value in diagnostic_maps):
+        raise RuntimeError("orientation diagnostic replay ownership is incomplete")
+    if diagnostic_present and set(oriented.vqf_tilt_source_binding_digest_by_node) != set(nodes):
+        raise RuntimeError("orientation diagnostic source bindings are incomplete")
+    if diagnostic_present:
+        provenance = oriented.vqf_tilt_diagnostic_provenance
+        if type(provenance) is not VQFTiltDiagnosticProvenance or provenance.product_ready:
+            raise RuntimeError("orientation diagnostic lacks runtime-issued provenance")
+        provenance_digest = provenance.digest
+        if (
+            provenance_digest is None or len(provenance_digest) != 64
+            or any(c not in "0123456789abcdef" for c in provenance_digest)
+        ):
+            raise RuntimeError("orientation diagnostic lacks runtime-seal provenance")
+        arrays["orientation/vqf_tilt_diagnostic_provenance_digest"] = np.asarray(
+            provenance_digest, dtype="S64",
+        )
+        for field in (
+            "prefit_seal_sha256", "qualified_source_closure_digest",
+            "initial_stochastic_state_semantic_sha256",
+            "initial_stochastic_state_source_status",
+            "initial_stochastic_state_source_sha256",
+            "initial_stochastic_state_source_relative_path",
+            "initial_stochastic_state_source_size",
+            "initial_stochastic_state_source_mtime_ns",
+            "settings_semantic_sha256", "timer_domain", "vqf_version",
+            "vqf_parameters_digest",
+        ):
+            value = getattr(provenance, field)
+            arrays[f"orientation/vqf_tilt_provenance/{field}"] = np.asarray(
+                "MISSING" if value is None else value,
+            )
+        arrays["orientation/vqf_tilt_provenance/product_ready"] = np.asarray(False)
+    prefix = f"orientation/{oriented.chronological_index:02d}"
     for node in nodes:
         time = np.asarray(oriented.time_us_by_node[node], dtype=np.int64)
         boot = np.asarray(oriented.derived_boot_epoch_by_node[node], dtype=np.int64)
@@ -131,6 +272,16 @@ def _owner_authenticated_orientation_replay_arrays(
         gap_covariance = np.asarray(
             oriented.gap_only_orientation_covariance_rad2_by_node[node], dtype=float,
         )
+        if diagnostic_present:
+            sequence = np.asarray(oriented.imu_sample_sequence_by_node[node], dtype=np.int64)
+            raw_start = np.asarray(oriented.raw_start_offset_by_node[node], dtype=np.uint64)
+            raw_end = np.asarray(oriented.raw_end_offset_by_node[node], dtype=np.uint64)
+            raw_sample = np.asarray(oriented.raw_sample_index_by_node[node], dtype=np.uint8)
+            bias_sigma = np.asarray(oriented.vqf_residual_bias_sigma_rad_s_by_node[node], dtype=float)
+            rest = np.asarray(oriented.vqf_rest_detected_by_node[node], dtype=bool)
+            relative_rest = np.asarray(oriented.vqf_relative_rest_deviation_by_node[node], dtype=float)
+            acceleration_norm_residual = np.asarray(oriented.acceleration_norm_residual_mps2_by_node[node], dtype=float)
+            world_tilt_innovation = np.asarray(oriented.world_tilt_innovation_rad_by_node[node], dtype=float)
         if (
             time.ndim != 1
             or boot.shape != time.shape
@@ -139,10 +290,24 @@ def _owner_authenticated_orientation_replay_arrays(
             or gyro.shape != (len(time), 3)
             or quaternion.shape != (len(time), 4)
             or gap_covariance.shape != (len(time), 3, 3)
+            or (diagnostic_present and sequence.shape != time.shape)
+            or (diagnostic_present and raw_start.shape != time.shape)
+            or (diagnostic_present and raw_end.shape != time.shape)
+            or (diagnostic_present and raw_sample.shape != time.shape)
+            or (diagnostic_present and bias_sigma.shape != time.shape)
+            or (diagnostic_present and rest.shape != time.shape)
+            or (diagnostic_present and relative_rest.shape != (len(time), 2))
+            or (diagnostic_present and acceleration_norm_residual.shape != time.shape)
+            or (diagnostic_present and world_tilt_innovation.shape != time.shape)
             or not np.isfinite(accelerometer).all()
             or not np.isfinite(gyro).all()
             or not np.isfinite(quaternion).all()
             or not np.isfinite(gap_covariance).all()
+            or (diagnostic_present and not np.isfinite(bias_sigma).all())
+            or (diagnostic_present and not np.isfinite(relative_rest).all())
+            or (diagnostic_present and not np.isfinite(acceleration_norm_residual).all())
+            or (diagnostic_present and not np.isfinite(world_tilt_innovation).all())
+            or (diagnostic_present and np.any(raw_end <= raw_start))
         ):
             raise RuntimeError("orientation replay export arrays are inconsistent")
         arrays[f"{prefix}/{node}/time_us"] = time.copy()
@@ -152,6 +317,22 @@ def _owner_authenticated_orientation_replay_arrays(
         arrays[f"{prefix}/{node}/gyro_rads"] = gyro.copy()
         arrays[f"{prefix}/{node}/quat_world_sensor_wxyz"] = quaternion.copy()
         arrays[f"{prefix}/{node}/gap_only_covariance_rad2"] = gap_covariance.copy()
+        if diagnostic_present:
+            arrays[f"{prefix}/{node}/imu_sample_sequence"] = sequence.copy()
+            arrays[f"{prefix}/{node}/raw_start_offset"] = raw_start.copy()
+            arrays[f"{prefix}/{node}/raw_end_offset"] = raw_end.copy()
+            arrays[f"{prefix}/{node}/raw_sample_index"] = raw_sample.copy()
+            arrays[f"{prefix}/{node}/vqf_bias_sigma_rad_s"] = bias_sigma.copy()
+            arrays[f"{prefix}/{node}/vqf_rest_detected"] = rest.copy()
+            arrays[f"{prefix}/{node}/vqf_relative_rest_deviation"] = relative_rest.copy()
+            arrays[f"{prefix}/{node}/acceleration_norm_residual_mps2"] = acceleration_norm_residual.copy()
+            arrays[f"{prefix}/{node}/world_tilt_innovation_rad"] = world_tilt_innovation.copy()
+            source_binding_digest = oriented.vqf_tilt_source_binding_digest_by_node[node]
+            if len(source_binding_digest) != 64:
+                raise RuntimeError("orientation diagnostic source-binding digest is invalid")
+            arrays[f"{prefix}/{node}/vqf_tilt_source_binding_digest"] = np.asarray(
+                source_binding_digest, dtype="S64",
+            )
     return arrays
 
 
@@ -1065,6 +1246,22 @@ class C2PipelineRuntime:
         self.guard.begin_capture("C2")
         self._stage = PipelineStage.ORIENTATION
         self._stage_events: list[dict[str, Any]] = []
+        initial_relative = str(self.settings["execution_contract"][
+            "initial_stochastic_state_relative_path"
+        ])
+        initial_file_binding = None
+        if initial_relative not in seal_authority["qualified_source_hashes"]:
+            initial_file_binding = _validated_settings_initial_state_binding(
+                self.settings, self._initial_stochastic_state,
+                self._initial_stochastic_state_semantic_sha256,
+            )
+        tilt_authority, tilt_capability = _runtime_vqf_tilt_authority(
+            seal_authority=seal_authority,
+            settings=self.settings,
+            initial_semantic_sha256=self._initial_stochastic_state_semantic_sha256,
+            settings_semantic_sha256=self._settings_semantic_sha256,
+            initial_file_binding=initial_file_binding,
+        )
         self._orientation_owner = ContinuousVQFState(
             self._initial_stochastic_state,
             execution_guard=self.guard,
@@ -1074,6 +1271,8 @@ class C2PipelineRuntime:
                 self.settings["orientation"]["unknown_unusable_episode_orientation_sigma_rad"]
             ),
             calibration_settings=self.settings["calibration_posterior"],
+            tilt_diagnostic_runtime_authority=tilt_authority,
+            _tilt_provenance_capability=tilt_capability,
         )
         self._clock_owner = PersistentPairClockState(
             maximum_abs_drift_ppm=float(self.settings["timing"]["maximum_abs_drift_ppm"]),

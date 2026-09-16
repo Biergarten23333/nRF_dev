@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="zh"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>五节点 · 同步 3D 动作对照</title>
+<style>
+:root{color-scheme:dark;--bg:#0c1420;--panel:#142131;--line:#2c4055;--text:#eff5fc;--muted:#a8bdd0;--five:#39c5ff;--ten:#ffb270}
+[hidden]{display:none!important}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:15px/1.5 system-ui,sans-serif}
+main{padding:22px 24px;max-width:1900px;margin:auto}h1{font-size:25px;margin:0 0 3px;font-weight:650}.sub{color:var(--muted);margin:0 0 16px}
+.toolbar{display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin:12px 0}.toolbar label{display:flex;align-items:center;gap:8px}
+button,select{background:#1b2d41;border:1px solid #3b536d;color:var(--text);padding:7px 12px;border-radius:7px;font:inherit;cursor:pointer}
+button:hover,select:hover{background:#28425d}button.active{border-color:var(--five);color:var(--five)}#play{min-width:78px;background:#154361;border-color:#297fa7}
+.legend{display:flex;align-items:center;gap:18px;margin-left:auto}.legend i{display:inline-block;width:23px;height:4px;vertical-align:middle;margin-right:7px;border-radius:3px}.five{background:var(--five)}.ten{background:var(--ten)}
+.timeline{display:flex;align-items:center;gap:16px;margin:13px 0 15px}input[type=range]{flex:1;accent-color:var(--five);cursor:pointer}#time{font-variant-numeric:tabular-nums;min-width:142px;color:#d2e4f6}
+.scroll{overflow:auto}.views{display:grid;grid-template-columns:repeat(3,minmax(300px,1fr));gap:14px;min-width:930px}
+.panel.overlay{grid-column:1/-1}.panel.overlay canvas{height:620px}.overlay-legend{padding:0 14px 8px;color:var(--muted)}
+.panel{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--panel)}.panel header{display:flex;justify-content:space-between;padding:12px 14px 7px;align-items:center}.panel strong{font-size:16px}.panel header span{font-size:12px;color:#8daabe}
+.geometry{padding:0 14px 7px;font-size:12px;color:var(--muted)}canvas{display:block;width:100%;height:clamp(480px,60vh,730px);touch-action:none;cursor:grab;background:linear-gradient(#152335,#0e1928)}canvas.dragging{cursor:grabbing}
+.footer{display:flex;justify-content:space-between;gap:15px;color:var(--muted);font-size:13px;margin:12px 0}.badge{color:#65dac6}.warn{color:#ffcb82}details{border-top:1px solid var(--line);padding-top:12px;color:var(--muted)}summary{cursor:pointer;color:#dae7f3}table{border-collapse:collapse;margin:12px 0;font-size:14px}td,th{padding:7px 16px;border-bottom:1px solid var(--line);text-align:right}td:first-child,th:first-child{text-align:left}a{color:#62cfff}
+</style>
+<main>
+<h1>五节点纯 IMU · 同步 3D 对照</h1>
+<p class="sub">拖动任意视窗，三幅同步旋转。滚轮缩放 · Shift＋拖动平移 · 双击复位</p>
+<p id="reviewStatus" class="warn">已按各节点原始采样时间重新对齐。五节点的上臂／肘位置仍存在推断错误，本页保留失败结果供检查。</p>
+<div class="toolbar">
+  <label>动作 <select id="episode"></select></label>
+  <button id="play">播放</button>
+  <label>速度 <select id="speed"><option value="0.25">0.25×</option><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label>
+  <label>显示 <select id="mode"><option value="both">叠加对照</option><option value="five">仅五节点</option><option value="ten">仅十节点</option></select></label>
+  <div class="legend"><span><i class="five"></i>五节点（含推断肢段）</span><span><i class="ten"></i>十节点参考</span></div>
+</div>
+<div class="toolbar" aria-label="同步相机控制">
+  <button data-view="orbit" class="active">3D 斜视</button><button data-view="front">正面</button><button data-view="side">侧面</button><button data-view="top">俯视</button><button id="reset">重置视角</button>
+  <label><input id="labels" type="checkbox" checked>左右标识</label><span class="badge">三视窗相机已联动</span>
+</div>
+<div class="timeline"><input id="frame" aria-label="同步播放进度" type="range" min="0" value="0"><span id="time"></span></div>
+<div class="scroll"><div class="views">
+  <section class="panel"><header><strong>几何模型 A</strong><span>同步 3D</span></header><div class="geometry" id="geometry0"></div><canvas id="scene0" aria-label="3D 视窗 A，可拖动旋转"></canvas></section>
+  <section class="panel"><header><strong>几何模型 B</strong><span>同步 3D</span></header><div class="geometry" id="geometry1"></div><canvas id="scene1" aria-label="3D 视窗 B，可拖动旋转"></canvas></section>
+  <section class="panel"><header><strong>几何模型 C</strong><span>同步 3D</span></header><div class="geometry" id="geometry2"></div><canvas id="scene2" aria-label="3D 视窗 C，可拖动旋转"></canvas></section>
+</div></div>
+<div class="footer"><span id="cameraState"></span><span id="frameStatus"></span></div>
+<p id="imuDirection" class="sub"></p>
+<details><summary>当前关节角与模型说明</summary>
+  <table><thead><tr><th>角度（°）</th><th>左肘</th><th>右肘</th><th>左膝</th><th>右膝</th></tr></thead><tbody><tr id="fiveAngles"></tr><tr id="tenAngles"></tr></tbody></table>
+  <p id="geometryNote">三组躯干／髋几何均为未实测部分的显示假设，共用同一份姿态结果。实测肢段长度保持固定，根位置固定；十节点是回归参考，不是地面真值。</p>
+  <p id="modelNote">本轮姿态模型的 9 个潜在自由度依赖先验，加速度尚未作为人体动力学约束。<a href="REPORT.md">查看完整验证报告</a></p>
+</details>
+</main>
+<script>
+'use strict';
+const D=__TRAJECTORY_DATA__;
+if(D.animation_focus)document.getElementById('imuDirection').hidden=true;
+// Axis glyphs use the same output basis as the frozen Cartesian poses.
+const displayAxisMatrix=D.display_axis_matrix||[[1,0,0],[0,1,0],[0,0,1]];
+if(displayAxisMatrix.length!==3||!displayAxisMatrix.every(row=>Array.isArray(row)&&row.length===3&&row.every(Number.isFinite)))throw Error('Invalid display-axis matrix');
+function displayAxis(vector){return displayAxisMatrix.map(row=>row.reduce((sum,value,i)=>sum+value*vector[i],0))}
+for(const [id,key] of [['reviewStatus','status_text'],['geometryNote','geometry_text'],['modelNote','model_text']]){if(D[key])document.getElementById(id).textContent=D[key]}
+const episode=document.getElementById('episode'),frame=document.getElementById('frame'),mode=document.getElementById('mode'),speed=document.getElementById('speed');
+if(D.heading_overlay){
+  const section=document.createElement('section');section.className='panel overlay';
+  section.innerHTML='<header><strong>最新版五节点 × 十节点 · 重叠对照</strong><span>同步 3D</span></header><div class="overlay-legend"><span style="color:#39c5ff">蓝色实线：最新版五节点</span>　<span style="color:#ffb270">橙色虚线：十节点</span>　骨盆原点重合，保留骨长和身体倾斜差异</div><canvas id="scene3" aria-label="五节点与十节点重叠对照，可拖动旋转"></canvas>';
+  document.querySelector('.views').appendChild(section);
+  document.querySelector('.sub').textContent='拖动任意视窗，四幅同步旋转。滚轮缩放 · Shift＋拖动平移 · 双击复位';
+  document.querySelector('.badge').textContent='四视窗相机已联动';
+  const label=document.createElement('label');label.innerHTML='<input id="alignHeading" type="checkbox" checked>统一展示航向（不改变计算结果）';
+  document.querySelector('[aria-label="同步相机控制"]').appendChild(label);
+  document.getElementById('alignHeading').addEventListener('change',draw);
+}
+const canvases=(D.heading_overlay?[0,1,2,3]:[0,1,2]).map(i=>document.getElementById('scene'+i));
+// One authoritative camera and one time cursor serve all three 3-D scenes.
+const camera={yaw:.85,pitch:.28,zoom:1,panX:0,panY:0};
+let playing=false,lastTick=0,accumulator=0,drag=null;
+for(const name of Object.keys(D.episodes)){const option=document.createElement('option');option.value=name;option.textContent=name;episode.appendChild(option)}
+const params=new URLSearchParams(location.search);episode.value=D.episodes[params.get('episode')]?params.get('episode'):(D.episodes.H01_boxing?'H01_boxing':Object.keys(D.episodes)[0]);
+for(const [key,lo,hi] of [['yaw',-100,100],['pitch',-1.52,1.52],['zoom',.45,2.8],['panX',-10,10],['panY',-10,10]]){
+  const value=Number(params.get(key));if(params.has(key)&&Number.isFinite(value))camera[key]=Math.max(lo,Math.min(hi,value));
+}
+function saveLocation(){const p=new URLSearchParams({episode:episode.value,frame:frame.value});for(const [key,value] of Object.entries(camera))p.set(key,value.toFixed(5));history.replaceState(null,'','?'+p)}
+for(let i=0;i<3;i++)document.getElementById('geometry'+i).textContent='躯干 '+D.geometry[i][0]+' m · 髋半宽 '+D.geometry[i][1]+' m';
+if(D.panels){mode.closest('label').hidden=true;document.querySelector('.legend').hidden=true;D.panels.forEach((p,i)=>{document.querySelectorAll('.panel strong')[i].textContent=p.title;document.getElementById('geometry'+i).textContent=p.caption;canvases[i].setAttribute('aria-label',p.title+'，可拖动旋转')})}
+function active(){return D.episodes[episode.value]}
+function displayedPose(key,k,m){
+  const d=active(),raw=d[key][k][D.panels?1:m];
+  if(!D.heading_overlay)return raw;
+  const root=raw[0],q=raw.map(p=>p.map((v,i)=>v-root[i]));
+  if(!document.getElementById('alignHeading').checked)return q;
+  // Per-frame display gauge only: align pelvis lateral azimuth, preserving
+  // all relative joint angles, tilt and lengths. Never alter stored data.
+  const target=d.five[k][1],a=raw[7].map((v,i)=>v-raw[10][i]);
+  const b=target[7].map((v,i)=>v-target[10][i]);
+  if(Math.hypot(a[0],a[1])<1e-6||Math.hypot(b[0],b[1])<1e-6)return q;
+  const yaw=Math.atan2(b[1],b[0])-Math.atan2(a[1],a[0]),c=Math.cos(yaw),s=Math.sin(yaw);
+  return q.map(([x,y,z])=>[c*x-s*y,s*x+c*y,z]);
+}
+function cameraCoordinates(p){
+  const [x,y,z]=p;
+  if(D.camera_convention==='C2_FROZEN'){
+    // Preserve build_c2_avatar_interactive.py::project's screen handedness.
+    // Its yaw is measured from +Y and pitch has the opposite sign to this
+    // orbit controller's azimuth/elevation. Convert camera parameters only;
+    // the capture-wide post-FK reflection is already in the joint positions.
+    const yaw=Math.PI/2-camera.yaw,pitch=-camera.pitch;
+    const cy=Math.cos(yaw),sy=Math.sin(yaw),cp=Math.cos(pitch),sp=Math.sin(pitch);
+    const rx=cy*x-sy*y,ry=sy*x+cy*y;
+    return [rx,sp*ry+cp*z,cp*ry-sp*z];
+  }
+  const cy=Math.cos(camera.yaw),sy=Math.sin(camera.yaw),cp=Math.cos(camera.pitch),sp=Math.sin(camera.pitch);
+  return [-sy*x+cy*y,-sp*(cy*x+sy*y)+cp*z,cp*(cy*x+sy*y)+sp*z];
+}
+function project(p,w,h){
+  const [right,up,depth]=cameraCoordinates([p[0],p[1],p[2]+.19]);
+  const perspective=4.5/(4.5-depth),scale=Math.min(w*.58,h*.34)*camera.zoom*perspective;
+  return [w*.5+right*scale+camera.panX*w,h*.47-up*scale+camera.panY*h,depth,perspective];
+}
+function stroke(ctx,a,b,color,width,dash=[]){ctx.strokeStyle=color;ctx.lineWidth=width;ctx.setLineDash(dash);ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);ctx.stroke();ctx.setLineDash([])}
+function drawScene(canvas,m){
+  const box=canvas.getBoundingClientRect(),w=box.width,h=box.height,ctx=canvas.getContext('2d'),d=active(),k=+frame.value;
+  ctx.clearRect(0,0,w,h);ctx.lineCap='round';ctx.lineJoin='round';
+  for(let i=-5;i<=5;i++){
+    const v=i*.2;stroke(ctx,project([v,-1,-.94],w,h),project([v,1,-.94],w,h),'#294055',i===0?1.1:.6);
+    stroke(ctx,project([-1,v,-.94],w,h),project([1,v,-.94],w,h),'#294055',i===0?1.1:.6);
+  }
+  const origin=[.5,-.55,-.935];
+  for(const [delta,color,label] of [[[.25,0,0],'#63d5ac','前 X'],[[0,.25,0],'#ec92af','左 Y'],[[0,0,.25],'#93bfff','上 Z']]){
+    const outputDelta=displayAxis(delta);
+    const a=project(origin,w,h),b=project(origin.map((v,i)=>v+outputDelta[i]),w,h);stroke(ctx,a,b,color,2);ctx.fillStyle=color;ctx.font='11px system-ui';ctx.fillText(label,b[0]+4,b[1]-4);
+  }
+  const primitives=[];
+  const overlay=!!D.heading_overlay&&m===3;
+  for(const key of (overlay?['ten','five']:(D.panels?[D.panels[m].source]:['ten','five']))){
+    if(!D.panels&&mode.value!=='both'&&mode.value!==key)continue;
+    const raw=displayedPose(key,k,m);if(!raw.every(p=>p.every(Number.isFinite)))continue;
+    const points=raw.map(p=>project(p,w,h)),color=D.panels&&!overlay?D.panels[m].color:(key==='five'?'#39c5ff':'#ffb270');
+    const torso=[1,4,10,7].map(i=>points[i]);
+    if(!overlay)primitives.push({depth:torso.reduce((a,p)=>a+p[2],0)/4,type:'torso',points:torso,color,key});
+    for(const [a,b] of D.lines)primitives.push({depth:(points[a][2]+points[b][2])/2,type:'bone',a:points[a],b:points[b],color,key});
+    for(const p of points)primitives.push({depth:p[2]+.002,type:'joint',p,color,key});
+    if((D.panels||key==='five')&&document.getElementById('labels').checked){
+      for(const [i,label] of [[1,'L'],[4,'R']])primitives.push({depth:100,type:'label',p:points[i],label,color});
+    }
+  }
+  primitives.sort((a,b)=>a.depth-b.depth);
+  for(const item of primitives){
+    if(item.type==='torso'){
+      ctx.fillStyle=item.color+'16';ctx.beginPath();item.points.forEach((p,i)=>i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]));ctx.closePath();ctx.fill();
+    }else if(item.type==='bone'){
+      const width=item.key==='five'?4.6:3.2;
+      stroke(ctx,item.a,item.b,'#0d1725',width+2.2);stroke(ctx,item.a,item.b,item.color,width,item.key==='ten'&&(overlay||(!D.panels&&mode.value==='both'))?[7,4]:[]);
+    }else if(item.type==='joint'){
+      const radius=(item.key==='five'?4.1:3.1)*item.p[3];ctx.fillStyle=item.color;ctx.beginPath();ctx.arc(item.p[0],item.p[1],radius,0,Math.PI*2);ctx.fill();ctx.fillStyle='#ffffff88';ctx.beginPath();ctx.arc(item.p[0]-.8,item.p[1]-.9,radius*.32,0,Math.PI*2);ctx.fill();
+    }else{ctx.font='bold 12px system-ui';ctx.fillStyle=item.color;ctx.fillText(item.label,item.p[0]+8,item.p[1]-8)}
+  }
+}
+function draw(){
+  canvases.forEach(drawScene);const d=active(),k=+frame.value;
+  document.getElementById('time').textContent=d.t[k].toFixed(2)+' s / '+d.t[d.t.length-1].toFixed(2)+' s';
+  document.getElementById('cameraState').textContent='共享相机 · 方位 '+(camera.yaw*180/Math.PI).toFixed(0)+'° · 仰角 '+(camera.pitch*180/Math.PI).toFixed(0)+'° · 缩放 '+camera.zoom.toFixed(2)+'×';
+  document.getElementById('frameStatus').textContent='帧 '+(k+1)+' / '+d.t.length+(d.valid[k]?'':' · 本帧未纳入数值比较');
+  document.getElementById('frameStatus').className=d.valid[k]?'':'warn';
+  const elevation=(key,a,b)=>{const p=d[key][k][1],v=p[b].map((x,i)=>x-p[a][i]);return Math.asin(Math.max(-1,Math.min(1,v[2]/Math.hypot(...v))))*180/Math.PI};
+  const pair=(key)=>[elevation(key,2,3),elevation(key,5,6)].map(x=>Number.isFinite(x)?x.toFixed(1)+'°':'缺测').join(' / ');
+  document.getElementById('imuDirection').textContent='前臂仰角（左 / 右）：五节点 '+pair('five')+'；十节点 '+pair('ten')+'。'+(d.sample_time_s?' 共同时间 '+d.sample_time_s[k].toFixed(6)+' s':'');
+  for(const [id,label,angles] of [['fiveAngles','五节点',d.bends[k]],['tenAngles','十节点参考',d.reference_bends[k]]])document.getElementById(id).innerHTML='<td>'+label+'</td>'+angles.map(x=>'<td>'+(Number.isFinite(x)?x.toFixed(1):'缺测')+'</td>').join('');
+}
+function resize(){for(const c of canvases){const r=c.getBoundingClientRect(),dpr=Math.min(devicePixelRatio||1,2);c.width=Math.round(r.width*dpr);c.height=Math.round(r.height*dpr);c.getContext('2d').setTransform(dpr,0,0,dpr,0,0)}draw()}
+function setView(view){
+  const front=displayAxis([1,0,0]),side=displayAxis([0,-1,0]);
+  Object.assign(camera,{zoom:1,panX:0,panY:0});const presets={orbit:[.85,.28],front:[Math.atan2(front[1],front[0]),0],side:[Math.atan2(side[1],side[0]),0],top:[0,Math.PI/2-.015]};
+  [camera.yaw,camera.pitch]=presets[view];document.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===view));draw();saveLocation();
+}
+function changeEpisode(){frame.max=active().t.length-1;frame.value=0;accumulator=0;draw()}
+episode.addEventListener('change',()=>{changeEpisode();saveLocation()});frame.addEventListener('input',()=>{accumulator=0;draw();saveLocation()});mode.addEventListener('change',draw);document.getElementById('labels').addEventListener('change',draw);
+document.getElementById('play').addEventListener('click',()=>{playing=!playing;document.getElementById('play').textContent=playing?'暂停':'播放';saveLocation()});
+document.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>setView(b.dataset.view)));document.getElementById('reset').addEventListener('click',()=>setView('orbit'));
+for(const canvas of canvases){
+  canvas.addEventListener('contextmenu',e=>e.preventDefault());
+  canvas.addEventListener('pointerdown',e=>{drag={id:e.pointerId,x:e.clientX,y:e.clientY,pan:e.shiftKey||e.button===2,start:{...camera},canvas};canvas.setPointerCapture(e.pointerId);canvases.forEach(c=>c.classList.add('dragging'))});
+  canvas.addEventListener('pointermove',e=>{
+    if(!drag||drag.id!==e.pointerId)return;const dx=e.clientX-drag.x,dy=e.clientY-drag.y;
+    if(drag.pan){const r=drag.canvas.getBoundingClientRect();camera.panX=drag.start.panX+dx/r.width;camera.panY=drag.start.panY+dy/r.height}
+    else{camera.yaw=drag.start.yaw+(D.camera_convention==='C2_FROZEN'?1:-1)*dx*.008;camera.pitch=Math.max(-1.52,Math.min(1.52,drag.start.pitch+dy*.008))}
+    document.querySelectorAll('[data-view]').forEach(b=>b.classList.remove('active'));draw();
+  });
+  const stop=()=>{drag=null;canvases.forEach(c=>c.classList.remove('dragging'));saveLocation()};canvas.addEventListener('pointerup',stop);canvas.addEventListener('pointercancel',stop);canvas.addEventListener('lostpointercapture',stop);
+  canvas.addEventListener('wheel',e=>{e.preventDefault();camera.zoom=Math.max(.45,Math.min(2.8,camera.zoom*Math.exp(-e.deltaY*.001)));draw();saveLocation()},{passive:false});
+  canvas.addEventListener('dblclick',()=>setView('orbit'));
+}
+function animate(t){const dt=lastTick?Math.min((t-lastTick)/1000,.1):0;lastTick=t;if(playing){accumulator+=dt*+speed.value;const d=active();let k=+frame.value;while(k<d.t.length-1&&accumulator>=d.t[k+1]-d.t[k]){accumulator-=d.t[k+1]-d.t[k];k++}if(k===d.t.length-1){k=0;accumulator=0}frame.value=k;draw()}requestAnimationFrame(animate)}
+changeEpisode();frame.value=Math.max(0,Math.min(+frame.max,Number(params.get('frame'))||0));new ResizeObserver(resize).observe(document.querySelector('.views'));resize();requestAnimationFrame(animate);
+</script></html>

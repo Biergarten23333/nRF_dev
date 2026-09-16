@@ -31,6 +31,8 @@ SEGMENTS = (
     "upper_arm_right", "forearm_right", "thigh_left", "shank_left",
     "thigh_right", "shank_right",
 )
+DEFAULT_POINT_CONSTRAINT_SIGMA_M = 0.03
+POINT_CONSTRAINT_GATE_SIGMA = 4.0
 
 
 @dataclass(frozen=True)
@@ -74,7 +76,7 @@ class ArticulatedRangeResult:
     physical_residual_m: np.ndarray
     effective_weight: np.ndarray
     facing_nlos_weight: np.ndarray
-    root_covariance_m2: np.ndarray
+    root_covariance_m2: np.ndarray | None
     rank: int
     condition: float
     nfev: int
@@ -117,22 +119,55 @@ def corrected_proxy_points(
     base_rotations_world: Mapping[str, np.ndarray],
     correction_rotvec: Mapping[str, np.ndarray],
     geometry: DisplayProxyGeometry,
+    *,
+    _batch_rotation_conversion: bool = False,
 ) -> dict[str, np.ndarray]:
     """Evaluate the exact frozen display-proxy tree after small corrections."""
 
     missing = set(SEGMENTS) - set(base_rotations_world)
     if missing:
         raise ValueError(f"missing base segment rotations: {sorted(missing)}")
-    rotations = {}
+    bases: list[np.ndarray] = []
+    deltas: list[np.ndarray] = []
     for segment in SEGMENTS:
         base = np.asarray(base_rotations_world[segment], dtype=float).reshape(3, 3)
         delta = np.asarray(correction_rotvec[segment], dtype=float).reshape(3)
         if not np.all(np.isfinite(base)) or not np.all(np.isfinite(delta)):
             raise ValueError("segment rotations must be finite")
-        rotations[segment] = base @ Rotation.from_rotvec(delta).as_matrix()
+        bases.append(base)
+        deltas.append(delta)
 
+    if _batch_rotation_conversion:
+        # ``least_squares`` evaluates this FK thousands of times while forming
+        # its finite-difference Jacobian.  SciPy's batched path is exactly
+        # row-equivalent to ten scalar calls and keeps the writable solver-local
+        # buffer at the immediate compiled boundary.
+        delta_matrices = Rotation.from_rotvec(np.stack(deltas)).as_matrix()
+        rotations = {
+            segment: bases[index] @ delta_matrices[index]
+            for index, segment in enumerate(SEGMENTS)
+        }
+    else:
+        # Preserve the established public writable C-contiguous fast path and
+        # the explicit read-only adapter behavior outside the bounded solver.
+        rotations = {}
+        for index, segment in enumerate(SEGMENTS):
+            scipy_delta = deltas[index]
+            if not scipy_delta.flags.writeable or not scipy_delta.flags.c_contiguous:
+                scipy_delta = np.array(
+                    scipy_delta, dtype=float, order="C", copy=True
+                )
+            rotations[segment] = (
+                bases[index] @ Rotation.from_rotvec(scipy_delta).as_matrix()
+            )
+
+    return _proxy_points_from_rotations(rotations,geometry)
+
+
+def _proxy_points_from_rotations(rotations,geometry):
+    """Shared scalar/batched FK tree; callers validate proper rotations."""
     length = geometry.segment_length_m
-    root = np.zeros(3)
+    root = np.zeros(np.asarray(rotations['torso']).shape[:-2]+(3,))
     shoulder_mid = rotations["torso"] @ np.array([0.0, 0.0, geometry.torso_height_m])
     shoulder_left = shoulder_mid + rotations["torso"] @ np.array(
         [-0.5 * geometry.shoulder_span_m, 0.0, 0.0]
@@ -188,12 +223,136 @@ def corrected_proxy_points(
     }
 
 
-def _failure(reason: str, root: np.ndarray) -> ArticulatedRangeResult:
+def _skew(vector: np.ndarray) -> np.ndarray:
+    x, y, z = np.asarray(vector, dtype=float).reshape(3)
+    return np.array([[0.0, -z, y], [z, 0.0, -x], [-y, x, 0.0]])
+
+
+def _so3_right_jacobian(rotvec: np.ndarray) -> np.ndarray:
+    """Stable right Jacobian of SO(3) for the existing additive rotvec chart."""
+
+    value = np.asarray(rotvec, dtype=float).reshape(3)
+    theta2 = float(value @ value)
+    cross = _skew(value)
+    cross2 = cross @ cross
+    if theta2 < 1e-8:
+        theta4 = theta2 * theta2
+        a = 0.5 - theta2 / 24.0 + theta4 / 720.0
+        b = 1.0 / 6.0 - theta2 / 120.0 + theta4 / 5040.0
+    else:
+        theta = math.sqrt(theta2)
+        a = (1.0 - math.cos(theta)) / theta2
+        b = (theta - math.sin(theta)) / (theta2 * theta)
+    return np.eye(3) - a * cross + b * cross2
+
+
+def _corrected_proxy_point_jacobians(
+    base_rotations_world: Mapping[str, np.ndarray],
+    correction_rotvec: Mapping[str, np.ndarray],
+    geometry: DisplayProxyGeometry,
+    active_segments: Sequence[str],
+) -> dict[str, np.ndarray]:
+    """Analytic FK point Jacobians in the solver's exact active-column order."""
+
+    active = tuple(active_segments)
+    column = {segment: 3 * index for index, segment in enumerate(active)}
+    bases = {
+        segment: np.asarray(base_rotations_world[segment], dtype=float).reshape(3, 3)
+        for segment in SEGMENTS
+    }
+    corrections = {
+        segment: np.asarray(correction_rotvec[segment], dtype=float).reshape(3)
+        for segment in SEGMENTS
+    }
+    if any(
+        not np.isfinite(value).all()
+        for value in (*bases.values(), *corrections.values())
+    ):
+        raise FloatingPointError("nonfinite articulated FK Jacobian input")
+    delta = Rotation.from_rotvec(np.stack(tuple(corrections.values()))).as_matrix()
+    rotation = {
+        segment: bases[segment] @ delta[index]
+        for index, segment in enumerate(SEGMENTS)
+    }
+    width = 3 * len(active)
+    zero = np.zeros((3, width))
+
+    def extend(parent: np.ndarray, segment: str, vector: np.ndarray) -> np.ndarray:
+        result = parent.copy()
+        if segment in column:
+            start = column[segment]
+            result[:, start:start + 3] += (
+                -rotation[segment]
+                @ _skew(vector)
+                @ _so3_right_jacobian(corrections[segment])
+            )
+        return result
+
+    length = geometry.segment_length_m
+    jacobian: dict[str, np.ndarray] = {"pelvis_center": zero.copy()}
+    jacobian["shoulder_mid"] = extend(
+        zero, "torso", np.array([0.0, 0.0, geometry.torso_height_m])
+    )
+    jacobian["shoulder_left"] = extend(
+        zero, "torso",
+        np.array([-0.5 * geometry.shoulder_span_m, 0.0, geometry.torso_height_m]),
+    )
+    jacobian["shoulder_right"] = extend(
+        zero, "torso",
+        np.array([0.5 * geometry.shoulder_span_m, 0.0, geometry.torso_height_m]),
+    )
+    jacobian["elbow_left"] = extend(
+        jacobian["shoulder_left"], "upper_arm_left",
+        np.array([0.0, 0.0, -length["upper_arm_left"]]),
+    )
+    jacobian["wrist_left"] = extend(
+        jacobian["elbow_left"], "forearm_left",
+        np.array([0.0, 0.0, -length["forearm_left"]]),
+    )
+    jacobian["elbow_right"] = extend(
+        jacobian["shoulder_right"], "upper_arm_right",
+        np.array([0.0, 0.0, -length["upper_arm_right"]]),
+    )
+    jacobian["wrist_right"] = extend(
+        jacobian["elbow_right"], "forearm_right",
+        np.array([0.0, 0.0, -length["forearm_right"]]),
+    )
+    jacobian["hip_left"] = extend(
+        zero, "pelvis", np.array([-0.5 * geometry.hip_span_m, 0.0, 0.0])
+    )
+    jacobian["hip_right"] = extend(
+        zero, "pelvis", np.array([0.5 * geometry.hip_span_m, 0.0, 0.0])
+    )
+    jacobian["knee_left"] = extend(
+        jacobian["hip_left"], "thigh_left",
+        np.array([0.0, 0.0, -length["thigh_left"]]),
+    )
+    jacobian["ankle_left"] = extend(
+        jacobian["knee_left"], "shank_left",
+        np.array([0.0, 0.0, -length["shank_left"]]),
+    )
+    jacobian["knee_right"] = extend(
+        jacobian["hip_right"], "thigh_right",
+        np.array([0.0, 0.0, -length["thigh_right"]]),
+    )
+    jacobian["ankle_right"] = extend(
+        jacobian["knee_right"], "shank_right",
+        np.array([0.0, 0.0, -length["shank_right"]]),
+    )
+    return jacobian
+
+
+def _failure(
+    reason: str, root: np.ndarray, *, fixed_root: bool = False
+) -> ArticulatedRangeResult:
     corrections = {segment: np.zeros(3) for segment in SEGMENTS}
     return ArticulatedRangeResult(
         False, reason, np.asarray(root, float).copy(), corrections, {},
-        np.empty(0), np.empty(0), np.empty(0), np.empty(0), np.eye(3) * math.inf,
-        0, math.inf, 0, math.inf, math.inf, (), 0, {},
+        np.empty(0), np.empty(0), np.empty(0), np.empty(0),
+        None if fixed_root else np.eye(3) * math.inf,
+        0, math.inf, 0, math.inf, math.inf, (), 0,
+        ({"root_covariance_status": "UNAVAILABLE_FIXED_ROOT_NOT_ESTIMATED"}
+         if fixed_root else {}),
     )
 
 
@@ -207,8 +366,9 @@ def solve_articulated_ranges(
     root_velocity_mps: np.ndarray | None = None,
     previous_correction_rotvec: Mapping[str, np.ndarray] | None = None,
     active_segments: Sequence[str] | None = None,
+    fixed_root_position_m: np.ndarray | None = None,
     point_constraints_world_m: Mapping[str, np.ndarray] | None = None,
-    point_constraint_sigma_m: float = 0.03,
+    point_constraint_sigma_m: float = DEFAULT_POINT_CONSTRAINT_SIGMA_M,
     point_constraint_axes: Sequence[int] = (0, 1, 2),
     use_facing_nlos_prior: bool = True,
     hinge_projector: Callable[
@@ -221,6 +381,14 @@ def solve_articulated_ranges(
 
     config.validate()
     root0 = np.asarray(initial_root_m, float).reshape(3)
+    fixed_root = None if fixed_root_position_m is None else np.asarray(
+        fixed_root_position_m, float
+    ).reshape(3)
+    if fixed_root is not None and (
+        not np.isfinite(fixed_root).all()
+        or not np.array_equal(fixed_root, root0)
+    ):
+        raise ValueError("fixed articulated root must equal the authoritative initial root")
     velocity = np.zeros(3) if root_velocity_mps is None else np.asarray(
         root_velocity_mps, float
     ).reshape(3)
@@ -228,7 +396,9 @@ def solve_articulated_ranges(
     if anchors.shape != (8, 3) or not np.isfinite(anchors).all():
         raise ValueError("anchors_m must be a finite canonical 8x3 layout")
     if len(links) < 4:
-        return _failure("FEWER_THAN_FOUR_LINKS", root0)
+        return _failure(
+            "FEWER_THAN_FOUR_LINKS", root0, fixed_root=fixed_root is not None
+        )
     if not math.isfinite(point_constraint_sigma_m) or point_constraint_sigma_m <= 0.0:
         raise ValueError("point constraint sigma must be finite and positive")
     constraint_axes = tuple(int(axis) for axis in point_constraint_axes)
@@ -238,7 +408,9 @@ def solve_articulated_ranges(
         raise ValueError("point constraint axes must be drawn from x/y/z")
     identities = {(str(link.node), int(link.anchor)) for link in links}
     if len(identities) != len(links):
-        return _failure("DUPLICATE_NODE_ANCHOR_LINK", root0)
+        return _failure(
+            "DUPLICATE_NODE_ANCHOR_LINK", root0, fixed_root=fixed_root is not None
+        )
     previous = {
         segment: np.zeros(3) if previous_correction_rotvec is None else np.asarray(
             previous_correction_rotvec[segment], float
@@ -268,13 +440,26 @@ def solve_articulated_ranges(
     ):
         raise ValueError("invalid articulated range input")
 
-    x0 = np.r_[root0, *(previous[segment] for segment in active)]
+    if fixed_root is None:
+        x0 = np.r_[root0, *(previous[segment] for segment in active)]
+        prior_information = np.ones(len(links))
+    else:
+        x0 = np.r_[*(previous[segment] for segment in active)]
+        prior_information = np.asarray(
+            [link.information_weight for link in links], float
+        )
+        if not (
+            np.isfinite(prior_information).all()
+            and np.all((0.0 < prior_information) & (prior_information <= 1.0))
+        ):
+            raise ValueError("fixed-root information weights must be in (0, 1]")
     point_constraints = {
         str(name): np.asarray(target, dtype=float).reshape(3)
         for name, target in (point_constraints_world_m or {}).items()
     }
     valid_point_names = set(corrected_proxy_points(
-        base_rotations_world, previous, geometry
+        base_rotations_world, previous, geometry,
+        _batch_rotation_conversion=True,
     ))
     if set(point_constraints) - valid_point_names:
         raise ValueError("point constraint names are outside the FK proxy")
@@ -283,16 +468,20 @@ def solve_articulated_ranges(
 
     def decode_raw(vector: np.ndarray) -> tuple[np.ndarray, dict[str, np.ndarray]]:
         corrections = {segment: previous[segment].copy() for segment in SEGMENTS}
+        offset = 3 if fixed_root is None else 0
         corrections.update({
-            segment: vector[3 + 3 * index:6 + 3 * index]
+            segment: vector[offset + 3 * index:offset + 3 + 3 * index]
             for index, segment in enumerate(active)
         })
-        return vector[:3], corrections
+        return (vector[:3] if fixed_root is None else fixed_root.copy()), corrections
 
     def physical_from(
         root: np.ndarray, corrections: Mapping[str, np.ndarray]
     ) -> tuple[np.ndarray, dict[str, np.ndarray]]:
-        points = corrected_proxy_points(base_rotations_world, corrections, geometry)
+        points = corrected_proxy_points(
+            base_rotations_world, corrections, geometry,
+            _batch_rotation_conversion=True,
+        )
         node_positions = {
             node: root + points[point]
             for node, point in NODE_TO_PROXY_POINT.items()
@@ -331,16 +520,15 @@ def solve_articulated_ranges(
             facing_weight[positive] = 1.0 / (
                 1.0 + inward_probability * np.square(ratio)
             )
-        return robust * facing_weight, facing_weight
+        return prior_information * robust * facing_weight, facing_weight
 
     def residual(vector: np.ndarray) -> np.ndarray:
         innovation, _ = physical(vector)
         effective, _ = weights(innovation)
         root, corrections = decode_raw(vector)
-        terms = [
-            np.sqrt(effective) * innovation / sigma,
-            (root - root0) / config.root_prior_sigma_m,
-        ]
+        terms = [np.sqrt(effective) * innovation / sigma]
+        if fixed_root is None:
+            terms.append((root - root0) / config.root_prior_sigma_m)
         terms.extend(
             corrections[segment] / config.orientation_prior_sigma_rad
             for segment in active
@@ -352,7 +540,8 @@ def solve_articulated_ranges(
         )
         if point_constraints:
             points = corrected_proxy_points(
-                base_rotations_world, corrections, geometry
+                base_rotations_world, corrections, geometry,
+                _batch_rotation_conversion=True,
             )
             terms.extend(
                 (root + points[name] - target)[list(constraint_axes)]
@@ -361,39 +550,115 @@ def solve_articulated_ranges(
             )
         return np.concatenate(terms)
 
-    lower = np.r_[
-        root0 - config.maximum_root_step_m,
-        np.full(3 * len(active), -config.maximum_segment_correction_rad),
-    ]
-    upper = np.r_[
-        root0 + config.maximum_root_step_m,
-        np.full(3 * len(active), config.maximum_segment_correction_rad),
-    ]
+    def fixed_root_jacobian(vector: np.ndarray) -> np.ndarray:
+        if fixed_root is None:
+            raise RuntimeError("fixed-root Jacobian used by free-root solve")
+        root, corrections = decode_raw(vector)
+        innovation, node_positions = physical_from(root, corrections)
+        effective, _ = weights(innovation)
+        point_jacobian = _corrected_proxy_point_jacobians(
+            base_rotations_world, corrections, geometry, active
+        )
+        range_rows = np.empty((len(links), 3 * len(active)))
+        for index, link in enumerate(links):
+            predicted_tag = (
+                node_positions[link.node] + link_dt[index] * velocity
+            )
+            anchor_delta = anchor_rows[index] - predicted_tag
+            distance = float(np.linalg.norm(anchor_delta))
+            if not math.isfinite(distance) or distance <= np.finfo(float).eps:
+                raise FloatingPointError("zero/nonfinite articulated range distance")
+            innovation_gradient = (
+                anchor_delta / distance
+            ) @ point_jacobian[NODE_TO_PROXY_POINT[link.node]]
+            value = innovation[index]
+            log_weight_derivative = 0.0
+            if abs(value / sigma[index]) > config.huber_threshold_sigma:
+                log_weight_derivative -= 1.0 / value
+            if use_facing_nlos_prior and value > sigma[index]:
+                inward_probability = 0.5 * (1.0 - facing[index])
+                scale2 = config.positive_nlos_scale_m ** 2
+                log_weight_derivative -= (
+                    2.0 * inward_probability * value / scale2
+                    / (1.0 + inward_probability * value * value / scale2)
+                )
+            scalar = (
+                math.sqrt(effective[index]) / sigma[index]
+                * (1.0 + 0.5 * value * log_weight_derivative)
+            )
+            range_rows[index] = scalar * innovation_gradient
+        identity = np.eye(3 * len(active))
+        rows = [
+            range_rows,
+            identity / config.orientation_prior_sigma_rad,
+            identity / config.temporal_orientation_sigma_rad,
+        ]
+        if point_constraints:
+            rows.append(np.vstack([
+                point_jacobian[name][list(constraint_axes)]
+                / point_constraint_sigma_m
+                for name in point_constraints
+            ]))
+        result = np.vstack(rows)
+        expected_rows = (
+            len(links) + 6 * len(active)
+            + len(point_constraints) * len(constraint_axes)
+        )
+        if result.shape != (expected_rows, len(vector)):
+            raise FloatingPointError("articulated Jacobian shape mismatch")
+        if not np.isfinite(result).all():
+            raise FloatingPointError("nonfinite articulated Jacobian")
+        return result
+
+    if fixed_root is None:
+        lower = np.r_[
+            root0 - config.maximum_root_step_m,
+            np.full(3 * len(active), -config.maximum_segment_correction_rad),
+        ]
+        upper = np.r_[
+            root0 + config.maximum_root_step_m,
+            np.full(3 * len(active), config.maximum_segment_correction_rad),
+        ]
+    else:
+        lower = np.full(
+            3 * len(active), -config.maximum_segment_correction_rad
+        )
+        upper = np.full(
+            3 * len(active), config.maximum_segment_correction_rad
+        )
     try:
         prefit_innovation, _ = physical(x0)
         optimized = least_squares(
             residual, np.clip(x0, lower, upper), bounds=(lower, upper),
             method="trf", loss="linear", x_scale="jac",
+            jac=(fixed_root_jacobian if fixed_root is not None else "2-point"),
             max_nfev=config.maximum_nfev,
         )
         root, raw_corrections = decode_raw(optimized.x)
         raw_innovation, _ = physical_from(root, raw_corrections)
         physical_jacobian = optimized.jac[:len(links)]
         hessian = optimized.jac.T @ optimized.jac
-        covariance = np.linalg.pinv(hessian, rcond=1e-10)[:3, :3]
-        covariance += np.eye(3) * 0.12**2
-        pose_jacobian = physical_jacobian[:, 3:]
+        covariance = (
+            np.linalg.pinv(hessian, rcond=1e-10)[:3, :3]
+            + np.eye(3) * 0.12**2
+            if fixed_root is None
+            else None
+        )
+        pose_jacobian = physical_jacobian[:, 3:] if fixed_root is None else physical_jacobian
         if pose_jacobian.shape[1]:
             # `optimized.jac` is the Jacobian of the weighted residual used by
             # the raw solve.  Project pose columns against its matching root
             # columns here; the physical projected-root observability gate is
             # recomputed independently below after the hinge projection.
-            root_basis = np.linalg.qr(
-                physical_jacobian[:, :3], mode="reduced"
-            )[0]
-            projected = pose_jacobian - root_basis @ (
-                root_basis.T @ pose_jacobian
-            )
+            if fixed_root is None:
+                root_basis = np.linalg.qr(
+                    physical_jacobian[:, :3], mode="reduced"
+                )[0]
+                projected = pose_jacobian - root_basis @ (
+                    root_basis.T @ pose_jacobian
+                )
+            else:
+                projected = pose_jacobian
             pose_singular = np.linalg.svd(projected, compute_uv=False)
             pose_tolerance = (
                 pose_singular[0] * 1e-3 if len(pose_singular) else math.inf
@@ -402,7 +667,9 @@ def solve_articulated_ranges(
         else:
             pose_rank = 0
     except (ValueError, FloatingPointError, np.linalg.LinAlgError):
-        return _failure("NUMERICAL_FAILURE", root0)
+        return _failure(
+            "NUMERICAL_FAILURE", root0, fixed_root=fixed_root is not None
+        )
 
     projection_metrics: Mapping[str, Any] = {}
     if hinge_projector is not None:
@@ -436,19 +703,19 @@ def solve_articulated_ranges(
         or projection_metrics.get("post_projection_all_inside_rom") is True
     )
     projection_applied = hinge_projector is not None
-    # A post-solve projection is not an optimizer iterate.  Without point
-    # constraints retain the established range-only monotonic gate exactly.
-    # With footholds, range and contact are deliberately competing terms, so
-    # range median alone cannot judge the joint solution.  Evaluate the exact
-    # existing residual (all range, root/orientation/temporal prior, and
-    # foothold terms at their unchanged scales) at the three relevant states.
+    # A post-solve projection is not an optimizer iterate.  Judge it with the
+    # exact existing normalized residual (all range, root/orientation/temporal
+    # prior, and any foothold terms at their unchanged scales).  The raw range
+    # median remains audit evidence but does not own admission.
     range_projection_gate = bool(
         not projection_applied
         or projected_median <= prefit_median + 1e-10
     )
-    projected_vector = np.r_[
-        root, *(corrections[segment] for segment in active)
-    ]
+    projected_vector = (
+        np.r_[root, *(corrections[segment] for segment in active)]
+        if fixed_root is None
+        else np.r_[*(corrections[segment] for segment in active)]
+    )
     prefit_full_residual = residual(x0)
     raw_full_residual = residual(optimized.x)
     projected_full_residual = residual(projected_vector)
@@ -467,18 +734,22 @@ def solve_articulated_ranges(
         or projected_joint_objective
         <= prefit_joint_objective + joint_objective_tolerance
     )
-    projection_acceptance_owner = (
-        "FULL_EXISTING_RESIDUAL_WITH_POINT_CONSTRAINTS"
-        if point_constraints else "RANGE_MEDIAN_WITHOUT_POINT_CONSTRAINTS"
+    projection_acceptance_owner = "FULL_EXISTING_NORMALIZED_RESIDUAL_OBJECTIVE"
+    projection_acceptance_branch = "JOINT_FULL_RESIDUAL"
+    projection_acceptance_gate = joint_projection_gate
+    correction_tolerance = (
+        config.maximum_segment_correction_rad * math.sqrt(3.0) + 1e-10
     )
-    projection_acceptance_gate = (
-        joint_projection_gate if point_constraints else range_projection_gate
-    )
+    optimizer_root_finite = bool(np.isfinite(root).all())
+    rank_gate = rank == 3
+    condition_finite = math.isfinite(condition)
+    condition_gate = condition_finite and condition <= 1e8
+    correction_gate = max_correction <= correction_tolerance
+    physical_residual_finite = bool(np.isfinite(innovation).all())
     numerical_geometry_success = bool(
-        optimized.success and np.isfinite(root).all() and rank == 3
-        and math.isfinite(condition) and condition <= 1e8
-        and max_correction <= config.maximum_segment_correction_rad * math.sqrt(3.0) + 1e-10
-        and np.isfinite(innovation).all() and projection_inside
+        optimized.success and optimizer_root_finite and rank_gate
+        and condition_gate and correction_gate and physical_residual_finite
+        and projection_inside
     )
     constraint_error = 0.0
     raw_constraint_error = 0.0
@@ -489,13 +760,16 @@ def solve_articulated_ranges(
     foothold_projection_gate = True
     if point_constraints:
         prefit_points = corrected_proxy_points(
-            base_rotations_world, previous, geometry
+            base_rotations_world, previous, geometry,
+            _batch_rotation_conversion=True,
         )
         raw_points = corrected_proxy_points(
-            base_rotations_world, raw_corrections, geometry
+            base_rotations_world, raw_corrections, geometry,
+            _batch_rotation_conversion=True,
         )
         corrected_points = corrected_proxy_points(
-            base_rotations_world, corrections, geometry
+            base_rotations_world, corrections, geometry,
+            _batch_rotation_conversion=True,
         )
         prefit_constraint_terms = np.concatenate([
             (root0 + prefit_points[name] - target)[list(constraint_axes)]
@@ -531,7 +805,8 @@ def solve_articulated_ranges(
             not projection_applied
             or (
                 constraint_error <= prefit_constraint_error + 1e-10
-                and constraint_error <= 4.0 * point_constraint_sigma_m
+                and constraint_error
+                <= POINT_CONSTRAINT_GATE_SIGMA * point_constraint_sigma_m
             )
         )
     success = bool(
@@ -541,19 +816,41 @@ def solve_articulated_ranges(
     )
     projection_metrics = {
         **projection_metrics,
+        "root_covariance_status": (
+            "ESTIMATED_LEGACY_ROOT_BLOCK"
+            if fixed_root is None
+            else "UNAVAILABLE_FIXED_ROOT_NOT_ESTIMATED"
+        ),
         "projection_applied": projection_applied,
+        "point_constraints_present": bool(point_constraints),
+        "point_constraint_count": len(point_constraints),
+        "point_constraint_identity": tuple(sorted(point_constraints)),
         "prefit_range_median_abs_m": prefit_median,
         "raw_optimized_range_median_abs_m": raw_median,
         "projected_range_median_abs_m": projected_median,
         "projected_minus_raw_range_median_abs_m": projected_median - raw_median,
         "range_projection_gate": range_projection_gate,
         "projection_acceptance_owner": projection_acceptance_owner,
+        "projection_acceptance_branch": projection_acceptance_branch,
+        "projection_acceptance_tolerance": joint_objective_tolerance,
         "projection_acceptance_gate": projection_acceptance_gate,
         "prefit_full_residual_objective": prefit_joint_objective,
         "raw_optimized_full_residual_objective": raw_joint_objective,
         "projected_full_residual_objective": projected_joint_objective,
         "full_residual_objective_tolerance": joint_objective_tolerance,
         "joint_projection_gate": joint_projection_gate,
+        "optimizer_success": bool(optimized.success),
+        "optimizer_status": int(optimized.status),
+        "optimizer_message_class": type(optimized.message).__name__,
+        "optimizer_message": str(optimized.message),
+        "optimizer_root_finite": optimizer_root_finite,
+        "rank_gate": rank_gate,
+        "condition_finite": condition_finite,
+        "condition_gate": condition_gate,
+        "correction_gate": correction_gate,
+        "correction_tolerance_rad": correction_tolerance,
+        "physical_residual_finite": physical_residual_finite,
+        "numerical_geometry_success": numerical_geometry_success,
         "prefit_foothold_residual_m": prefit_constraint_error,
         "raw_optimized_foothold_residual_m": raw_constraint_error,
         "projected_foothold_residual_m": constraint_error,
@@ -567,10 +864,7 @@ def solve_articulated_ranges(
     elif not foothold_projection_gate:
         reason = "PROJECTED_FOOTHOLD_GATE_FAILURE"
     elif not projection_acceptance_gate:
-        reason = (
-            "PROJECTED_JOINT_OBJECTIVE_FAILURE"
-            if point_constraints else "OPTIMIZER_OR_PROJECTED_GEOMETRY_FAILURE"
-        )
+        reason = "PROJECTED_JOINT_OBJECTIVE_FAILURE"
     else:
         reason = "ACCEPTED"
     prefit_effective, _ = weights(prefit_innovation)

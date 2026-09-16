@@ -62,16 +62,15 @@ def _checkpoint_path(directory: Path, node: str, anchor: int) -> Path:
     return directory / f"{node}_anchor_{anchor}.json"
 
 
-def _clock_models(clock_table: Path) -> dict[str, ClockModel]:
-    document = json.loads(clock_table.read_text())
-    if clock_table.name != "CLOCK_TABLE_CALIBRATION_ONLY.json":
-        raise ValueError("production requires the exact calibration-only clock table")
+def _clock_models_document(document: dict, *, source_sha256: str) -> dict[str, ClockModel]:
+    """Validate an already authenticated calibration-only clock document."""
+    if type(document) is not dict:
+        raise ValueError("clock table must be an exact JSON object")
     if document.get("source_function") != (
         "biospur_fusion.c2_uwb_root_world.beacon_clock.align_capture_beacon_only"
     ):
         raise ValueError("clock table was not produced by the beacon-only function")
-    source = Path(__file__).with_name("beacon_clock.py")
-    if document.get("source_sha256") != _sha(source):
+    if document.get("source_sha256") != source_sha256:
         raise ValueError("clock source hash mismatch")
     contract = document.get("clock_contract", {})
     if not contract.get("pass"):
@@ -87,6 +86,15 @@ def _clock_models(clock_table: Path) -> dict[str, ClockModel]:
     return {node: ClockModel(int(row["boot_epoch"]), float(row["a_ns_per_us"]),
                              float(row["b_ns"]), float(row["sigma_ns"]))
             for node, row in owner.items()}
+
+
+def _clock_models(clock_table: Path) -> dict[str, ClockModel]:
+    if clock_table.name != "CLOCK_TABLE_CALIBRATION_ONLY.json":
+        raise ValueError("production requires the exact calibration-only clock table")
+    source = Path(__file__).with_name("beacon_clock.py")
+    return _clock_models_document(
+        json.loads(clock_table.read_text()), source_sha256=_sha(source),
+    )
 
 
 def _beacon_boundary_bridges(clock_table: Path) -> list[tuple[float, float]]:
